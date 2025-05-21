@@ -4,3 +4,5 @@ yolo11n.pt
 model
 FasterR-CNN
 runs
+requirements.txt
+
