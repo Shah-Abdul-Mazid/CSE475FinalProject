@@ -477,15 +477,16 @@ def main():
         st.write("Preview random images from the Bangladeshi Traffic Flow Dataset.")
         num_images = st.number_input("Number of images to preview:", min_value=1, max_value=100, value=5)
         images_per_row = st.number_input("Images per row:", min_value=1, max_value=10, value=5)
-        from pathlib import Path
-        root_dataset_path = Path("Raw Image") / "Raw Images"
-        if os.path.exists(root_dataset_path):
-            all_image_paths = []
-            for root, _, files in os.walk(root_dataset_path):
-                for file in files:
-                    if file.lower().endswith(('.png', '.jpg', '.jpeg')):
-                        all_image_paths.append(os.path.join(root, file))
 
+        root_dataset_path = Path("Raw Image") / "Raw Images"
+        
+        @st.cache_data
+        def get_image_paths(root_path):
+            return [str(path) for path in root_path.rglob("*.[pP][nN][gG]") + 
+                    root_path.rglob("*.[jJ][pP][gG]") + root_path.rglob("*.[jJ][pP][eE][gG]")]
+
+        if root_dataset_path.exists():
+            all_image_paths = get_image_paths(root_dataset_path)
             if all_image_paths:
                 samples = random.sample(all_image_paths, min(num_images, len(all_image_paths)))
                 for i in range(0, len(samples), images_per_row):
@@ -493,9 +494,9 @@ def main():
                     for j, img_path in enumerate(samples[i:i+images_per_row]):
                         try:
                             image = Image.open(img_path)
-                            cols[j].image(image, caption=os.path.basename(img_path), use_container_width=True)
-                        except:
-                            cols[j].warning(f"Failed to load image: {img_path}")
+                            cols[j].image(image, caption=Path(img_path).name, use_container_width=True)
+                        except Exception as e:
+                            cols[j].warning(f"Failed to load image: {img_path}. Error: {str(e)}")
             else:
                 st.warning("No image files found.")
         else:
