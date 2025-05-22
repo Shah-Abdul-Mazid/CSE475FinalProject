@@ -478,7 +478,7 @@ def main():
         num_images = st.number_input("Number of images to preview:", min_value=1, max_value=100, value=5)
         images_per_row = st.number_input("Images per row:", min_value=1, max_value=10, value=5)
 
-        root_dataset_path = BASE_DIR / "Bd_Traffic_Dataset_v6" / "Bangladeshi Traffic Flow Dataset" / "Bangladeshi Traffic Flow Dataset" / "Raw Images"
+        root_dataset_path = "Raw Image" / "Raw Images"
         if os.path.exists(root_dataset_path):
             all_image_paths = []
             for root, _, files in os.walk(root_dataset_path):
