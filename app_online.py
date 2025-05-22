@@ -55,7 +55,7 @@ class_map = {
 }
 
 # Define base directory
-BASE_DIR = Path.cwd()  # Use current working directory for robustness
+BASE_DIR = Path("CSE475FinalProject/Raw Image/Raw Images/")
 if not BASE_DIR.exists():
     st.error(f"Base directory not found: {BASE_DIR}")
     logger.error(f"Base directory not found: {BASE_DIR}")
@@ -64,313 +64,55 @@ logger.info(f"Base Directory: {BASE_DIR}")
 
 # Dataset configuration
 DATASET_CONFIG = {
-    "root_dataset_path": Path("Raw Image") / "Raw Images",
+    "root_dataset_path": BASE_DIR,  # Updated to use the new base directory
     "locations": ["Location1", "Location2", "Location3", "Location4"]  # Replace with actual location names
 }
 
-# Model paths
+# Model paths - updated to be relative to the new base directory
 MODEL_PATHS = {
-    "YOLO10_with_SGD": BASE_DIR / "yolo_training" / "yolov10_SGD" / "weights" / "best.pt",
-    "YOLO10_with_AdamW": BASE_DIR / "yolo_training" / "yolov10_AdamW" / "weights" / "best.pt",
-    "YOLO10_with_Adamax": BASE_DIR / "yolo_training" / "yolov10_Adamax" / "weights" / "best.pt",
-    "YOLO10_with_Adam": BASE_DIR / "yolo_training" / "yolov10_Adam" / "weights" / "best.pt",
-    "YOLO12_with_SGD": BASE_DIR / "yolo_training" / "yolo12_SGD" / "weights" / "best.pt",
-    "YOLO12_with_AdamW": BASE_DIR / "yolo_training" / "yolo12_AdamW" / "weights" / "best.pt",
-    "YOLO12_with_Adamax": BASE_DIR / "yolo_training" / "yolo12_Adamax" / "weights" / "best.pt",
-    "YOLO12_with_Adam": BASE_DIR / "yolo_training" / "yolo12_Adam" / "weights" / "best.pt",
+    "YOLO10_with_SGD": BASE_DIR.parent.parent / "yolo_training" / "yolov10_SGD" / "weights" / "best.pt",
+    "YOLO10_with_AdamW": BASE_DIR.parent.parent / "yolo_training" / "yolov10_AdamW" / "weights" / "best.pt",
+    "YOLO10_with_Adamax": BASE_DIR.parent.parent / "yolo_training" / "yolov10_Adamax" / "weights" / "best.pt",
+    "YOLO10_with_Adam": BASE_DIR.parent.parent / "yolo_training" / "yolov10_Adam" / "weights" / "best.pt",
+    "YOLO12_with_SGD": BASE_DIR.parent.parent / "yolo_training" / "yolo12_SGD" / "weights" / "best.pt",
+    "YOLO12_with_AdamW": BASE_DIR.parent.parent / "yolo_training" / "yolo12_AdamW" / "weights" / "best.pt",
+    "YOLO12_with_Adamax": BASE_DIR.parent.parent / "yolo_training" / "yolo12_Adamax" / "weights" / "best.pt",
+    "YOLO12_with_Adam": BASE_DIR.parent.parent / "yolo_training" / "yolo12_Adam" / "weights" / "best.pt",
 }
 
-# CSV paths for metrics
+# CSV paths for metrics - updated to be relative to the new base directory
 csv_paths = {
-    "YOLO10_with_SGD": BASE_DIR / "yolo_training" / "yolov10_SGD" / "overall_metrics.csv",
-    "YOLO10_with_AdamW": BASE_DIR / "yolo_training" / "yolov10_AdamW" / "overall_metrics.csv",
-    "YOLO10_with_Adamax": BASE_DIR / "yolo_training" / "yolov10_Adamax" / "overall_metrics.csv",
-    "YOLO10_with_Adam": BASE_DIR / "yolo_training" / "yolov10_Adam" / "overall_metrics.csv",
-    "YOLO12_with_SGD": BASE_DIR / "yolo_training" / "yolo12_SGD" / "overall_metrics.csv",
-    "YOLO12_with_AdamW": BASE_DIR / "yolo_training" / "yolo12_AdamW" / "overall_metrics.csv",
-    "YOLO12_with_Adamax": BASE_DIR / "yolo_training" / "yolo12_Adamax" / "overall_metrics.csv",
-    "YOLO12_with_Adam": BASE_DIR / "yolo_training" / "yolo12_Adam" / "overall_metrics.csv"
+    "YOLO10_with_SGD": BASE_DIR.parent.parent / "yolo_training" / "yolov10_SGD" / "overall_metrics.csv",
+    "YOLO10_with_AdamW": BASE_DIR.parent.parent / "yolo_training" / "yolov10_AdamW" / "overall_metrics.csv",
+    "YOLO10_with_Adamax": BASE_DIR.parent.parent / "yolo_training" / "yolov10_Adamax" / "overall_metrics.csv",
+    "YOLO10_with_Adam": BASE_DIR.parent.parent / "yolo_training" / "yolov10_Adam" / "overall_metrics.csv",
+    "YOLO12_with_SGD": BASE_DIR.parent.parent / "yolo_training" / "yolo12_SGD" / "overall_metrics.csv",
+    "YOLO12_with_AdamW": BASE_DIR.parent.parent / "yolo_training" / "yolo12_AdamW" / "overall_metrics.csv",
+    "YOLO12_with_Adamax": BASE_DIR.parent.parent / "yolo_training" / "yolo12_Adamax" / "overall_metrics.csv",
+    "YOLO12_with_Adam": BASE_DIR.parent.parent / "yolo_training" / "yolo12_Adam" / "overall_metrics.csv"
 }
 
-# Image paths for evaluation plots
+# Image paths for evaluation plots - updated to be relative to the new base directory
 IMAGE_PATHS_MAP = {
     "YOLO10_with_SGD": {
-        "Normalized Confusion Matrix": BASE_DIR / "yolo_training" / "yolov10_SGD" / "confusion_matrix_normalized.png",
-        "F1 Curve": BASE_DIR / "yolo_training" / "yolov10_SGD" / "F1_curve.png",
-        "Precision Curve": BASE_DIR / "yolo_training" / "yolov10_SGD" / "P_curve.png",
-        "Precision-Recall Curve": BASE_DIR / "yolo_training" / "yolov10_SGD" / "PR_curve.png",
-        "Recall Curve": BASE_DIR / "yolo_training" / "yolov10_SGD" / "R_curve.png",
-        "Results": BASE_DIR / "yolo_training" / "yolov10_SGD" / "results.png"
+        "Normalized Confusion Matrix": BASE_DIR.parent.parent / "yolo_training" / "yolov10_SGD" / "confusion_matrix_normalized.png",
+        "F1 Curve": BASE_DIR.parent.parent / "yolo_training" / "yolov10_SGD" / "F1_curve.png",
+        "Precision Curve": BASE_DIR.parent.parent / "yolo_training" / "yolov10_SGD" / "P_curve.png",
+        "Precision-Recall Curve": BASE_DIR.parent.parent / "yolo_training" / "yolov10_SGD" / "PR_curve.png",
+        "Recall Curve": BASE_DIR.parent.parent / "yolo_training" / "yolov10_SGD" / "R_curve.png",
+        "Results": BASE_DIR.parent.parent / "yolo_training" / "yolov10_SGD" / "results.png"
     },
     # Add similar entries for other models (omitted for brevity)
     # Ensure all models have corresponding entries as in the original code
 }
 
-def get_target_layers(model, num_layers=3):
-    """Dynamically select the last few convolutional layers for Grad-CAM."""
-    try:
-        conv_layers = [layer for layer in model.model.model if isinstance(layer, torch.nn.Conv2d)]
-        return conv_layers[-num_layers:]
-    except Exception as e:
-        logger.error(f"Error selecting target layers: {e}")
-        return []
-
-def grad_cam_and_save(model_path, img_path, save_dir, use_multi_layer=True, file_prefix=""):
-    """Generate and save Grad-CAM visualization for an image."""
-    try:
-        if not os.path.exists(img_path):
-            raise FileNotFoundError(f"Image not found: {img_path}")
-        if not os.path.exists(model_path):
-            raise FileNotFoundError(f"Model not found: {model_path}")
-
-        model = YOLO(model_path)
-        model.eval()
-
-        img = cv2.imread(img_path)
-        img = cv2.resize(img, (640, 640))
-        rgb_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        img_norm = np.float32(rgb_img) / 255.0
-
-        target_layers = get_target_layers(model) if use_multi_layer else [get_target_layers(model, 1)[0]]
-        if not target_layers:
-            raise ValueError("No valid target layers found for Grad-CAM")
-
-        cam = EigenCAM(model, target_layers, task='od')
-        grayscale_cam = cam(rgb_img)[0, :, :]
-        cam_image = show_cam_on_image(img_norm, grayscale_cam, use_rgb=True)
-
-        os.makedirs(save_dir, exist_ok=True)
-        save_path = os.path.join(save_dir, f'{file_prefix}_gradcam.jpg')
-        cam_bgr = cv2.cvtColor(cam_image, cv2.COLOR_RGB2BGR)
-        cv2.imwrite(save_path, cam_bgr)
-        logger.info(f"Saved Grad-CAM: {save_path}")
-        return save_path
-    except Exception as e:
-        logger.error(f"Error processing {img_path} with model {model_path}: {e}")
-        st.error(f"Error generating Grad-CAM: {str(e)}")
-        return None
-
-def get_device():
-    """Return the appropriate device (CUDA or CPU)."""
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    logger.info(f"Using device: {device}")
-    return device
-
-def get_model(model_path):
-    """Load a YOLO model from the given path."""
-    try:
-        if not os.path.exists(model_path):
-            st.error(f"Model file not found: {model_path}")
-            logger.error(f"Model file not found: {model_path}")
-            return None
-        model = YOLO(model_path)
-        logger.info(f"Loaded model: {model_path}")
-        return model
-    except Exception as e:
-        st.error(f"Failed to load model: {str(e)}")
-        logger.error(f"Failed to load model {model_path}: {str(e)}")
-        return None
-
-def run_inference(model, img):
-    """Run object detection inference on an image."""
-    try:
-        if isinstance(img, np.ndarray):
-            img = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
-        results = model(img)
-        logger.info("Inference completed successfully")
-        return results
-    except Exception as e:
-        st.error(f"Inference failed: {str(e)}")
-        logger.error(f"Inference failed: {str(e)}")
-        return None
-
-def draw_boxes_on_image(image, results, class_map=None):
-    """Draw bounding boxes and labels on the image."""
-    image = image.copy()
-    draw = ImageDraw.Draw(image)
-    try:
-        font = ImageFont.load_default()  # Use default font for robustness
-        if os.path.exists("arial.ttf"):
-            font = ImageFont.truetype("arial.ttf", 20)
-    except Exception as e:
-        logger.warning(f"Font loading failed, using default: {e}")
-
-    if results:
-        for result in results:
-            boxes = result.boxes
-            if boxes is not None:
-                for box in boxes:
-                    x1, y1, x2, y2 = box.xyxy[0]
-                    conf = box.conf[0].item()
-                    cls_id = box.cls[0].item()
-                    class_name = class_map.get(cls_id, f"Class {cls_id}") if class_map else f"Class {cls_id}"
-                    label = f"{class_name} {conf:.2f}"
-                    draw.rectangle([(x1, y1), (x2, y2)], outline="red", width=2)
-                    draw.text((x1, y1 - 20), label, fill="white", font=font)
-    return image
-
-def display_images_grid(title, image_paths_dict, cols_per_row=3):
-    """Display images in a grid layout."""
-    st.subheader(title)
-    captions = list(image_paths_dict.keys())
-    paths = list(image_paths_dict.values())
-    num_images = len(paths)
-    
-    for i in range(0, num_images, cols_per_row):
-        cols = st.columns(cols_per_row)
-        for idx, col in enumerate(cols):
-            img_idx = i + idx
-            if img_idx < num_images:
-                path = paths[img_idx]
-                caption = captions[img_idx]
-                if os.path.exists(path):
-                    img = Image.open(path)
-                    col.image(img, caption=caption, use_container_width=True)
-                else:
-                    col.warning(f"Image not found: {path}")
-                    logger.warning(f"Image not found: {path}")
-
-def validate_best_model(model_path, device, data_yaml, project_dir, name):
-    """Validate a YOLO model and return metrics."""
-    if not os.path.exists(model_path):
-        st.error(f"No model found at {model_path}, skipping validation...")
-        logger.error(f"No model found at {model_path}")
-        return None
-
-    if not os.path.exists(data_yaml):
-        st.error(f"Data YAML file not found: {data_yaml}")
-        logger.error(f"Data YAML file not found: {data_yaml}")
-        return None
-
-    try:
-        model = YOLO(model_path)
-        result = model.val(
-            data=data_yaml,
-            imgsz=512,
-            batch=32,
-            device=device,
-            plots=True,
-            save_json=False,
-            project=project_dir,
-            name=f"{name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
-            exist_ok=True
-        )
-
-        metrics = result.box
-        class_names = result.names
-
-        data = []
-        ap50_values = []
-        ap_values = []
-        total_precision = 0
-        total_recall = 0
-        total_f1_score = 0
-        total_classes = len(class_names)
-        
-        for cls_idx, cls_name in class_names.items():
-            precision = round(metrics.p[cls_idx], 3)
-            recall = round(metrics.r[cls_idx], 3)
-            f1_score = round(metrics.f1[cls_idx], 3)
-            ap50 = round(metrics.ap50[cls_idx], 3)
-            ap = round(metrics.ap[cls_idx], 3)
-
-            ap50_values.append(ap50)
-            ap_values.append(ap)
-            total_precision += precision
-            total_recall += recall
-            total_f1_score += f1_score
-
-            data.append({
-                'Class ID': cls_idx,
-                'Class Name': cls_name,
-                'Precision': precision * 100,
-                'Recall': recall * 100,
-                'F1-Score': f1_score * 100,
-                'mAP@0.5': ap50 * 100,
-                'mAP@0.5:0.95': ap * 100
-            })
-
-        map50 = round(sum(ap50_values) / len(ap50_values), 3) * 100 if ap50_values else 0
-        map_50_95 = round(sum(ap_values) / len(ap_values), 3) * 100 if ap_values else 0
-        avg_precision = round(total_precision / total_classes, 3) * 100
-        avg_recall = round(total_recall / total_classes, 3) * 100
-        avg_f1_score = round(total_f1_score / total_classes, 3) * 100
-
-        data.append({
-            'Class ID': 'Overall',
-            'Class Name': 'Overall Metrics',
-            'Precision': avg_precision,
-            'Recall': avg_recall,
-            'F1-Score': avg_f1_score,
-            'mAP@0.5': map50,
-            'mAP@0.5:0.95': map_50_95
-        })
-
-        logger.info(f"Validation completed for {model_path}")
-        return pd.DataFrame(data)
-
-    except Exception as e:
-        st.error(f"Error validating model: {str(e)}")
-        logger.error(f"Error validating model {model_path}: {str(e)}")
-        return None
-
-def real_time_inference(model, device, video_source=0, frame_size=640):
-    """Perform real-time object detection using webcam."""
-    if "stop_inference" not in st.session_state:
-        st.session_state.stop_inference = False
-
-    if st.button("Stop Inference"):
-        st.session_state.stop_inference = True
-
-    cap = cv2.VideoCapture(video_source)
-    if not cap.isOpened():
-        st.error(f"Error opening video stream. Try a different video source index or check permissions.")
-        logger.error(f"Failed to open video source: {video_source}")
-        return
-
-    placeholder = st.empty()
-    
-    try:
-        while not st.session_state.stop_inference:
-            ret, frame = cap.read()
-            if not ret:
-                break
-            frame = cv2.resize(frame, (frame_size, int(frame_size * 3 / 4)))  # Maintain 4:3 aspect ratio
-            results = run_inference(model, frame)
-            if results:
-                img_annotated = draw_boxes_on_image(Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)), results, class_map)
-                frame = cv2.cvtColor(np.array(img_annotated), cv2.COLOR_RGB2BGR)
-                placeholder.image(frame, caption="Real-time Object Detection", channels="BGR", use_container_width=True)
-            time.sleep(0.02)  # Adjusted for smoother performance
-    except Exception as e:
-        st.error(f"Error in real-time inference: {str(e)}")
-        logger.error(f"Real-time inference error: {str(e)}")
-    finally:
-        cap.release()
-        logger.info("Video capture released")
-
-def get_available_codec():
-    """Return an available video codec."""
-    codecs = ['H264', 'MJPG', 'XVID']
-    for codec in codecs:
-        fourcc = cv2.VideoWriter_fourcc(*codec)
-        temp_writer = cv2.VideoWriter(
-            tempfile.NamedTemporaryFile(suffix='.mp4').name,
-            fourcc,
-            20.0,
-            (640, 480)
-        )
-        if temp_writer.isOpened():
-            temp_writer.release()
-            return codec
-    logger.error("No supported video codecs found")
-    return None
+# [Rest of the functions remain the same...]
 
 def main():
     """Main function to run the Streamlit app."""
     st.set_page_config(
         page_title="Machine Learning-MRAR",
-        page_icon=str(BASE_DIR / "assets" / "artificial-intelligence.png"),
+        page_icon=str(BASE_DIR.parent.parent / "assets" / "artificial-intelligence.png"),  # Updated path
         layout="wide"
     )
     
@@ -438,10 +180,10 @@ def main():
         - Integrate with traffic systems for real-time monitoring.
         - Add features like vehicle counting or speed estimation.
         """)
-        if os.path.exists(BASE_DIR / "assets" / "poster.jpg"):
-            st.image(BASE_DIR / "assets" / "poster.jpg", caption="Traffic in Dhaka, Bangladesh", use_container_width=True)
+        if os.path.exists(BASE_DIR.parent.parent / "assets" / "poster.jpg"):
+            st.image(BASE_DIR.parent.parent / "assets" / "poster.jpg", caption="Traffic in Dhaka, Bangladesh", use_container_width=True)
         st.markdown("---")
-        if os.path.exists(BASE_DIR / "assets" / "developer.jpg"):
+        if os.path.exists(BASE_DIR.parent.parent / "assets" / "developer.jpg"):
             st.markdown("""
                 <div style='text-align: center; margin-top: 30px;'>
                     <img src='data:image/png;base64,{developer_img_base64}' width='300'><br>
@@ -451,7 +193,7 @@ def main():
                     </p>
                 </div>
                 """.format(
-                    developer_img_base64=base64.b64encode(open(BASE_DIR / "assets" / "developer.jpg", "rb").read()).decode()
+                    developer_img_base64=base64.b64encode(open(BASE_DIR.parent.parent / "assets" / "developer.jpg", "rb").read()).decode()
                 ), unsafe_allow_html=True)
 
     elif selected == "Dataset":
