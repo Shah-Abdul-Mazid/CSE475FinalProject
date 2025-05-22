@@ -19,9 +19,6 @@ import io
 import base64
 from datetime import datetime
 
-# Add custom module path
-sys.path.append(r'D:\CSE475_Project\YOLO_V11_CAM')
-
 from YOLO_V11_CAM.yolo_cam.eigen_cam import EigenCAM
 from YOLO_V11_CAM.yolo_cam.utils.image import scale_cam_image, show_cam_on_image
 
