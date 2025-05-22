@@ -70,26 +70,26 @@ DATASET_CONFIG = {
 
 # Model paths - updated to be relative to the new base directory
 MODEL_PATHS = {
-    "YOLO10_with_SGD": "yolo_training" / "yolov10_SGD" / "weights" / "best.pt",
-    "YOLO10_with_AdamW": "yolo_training" / "yolov10_AdamW" / "weights" / "best.pt",
-    "YOLO10_with_Adamax": "yolo_training" / "yolov10_Adamax" / "weights" / "best.pt",
-    "YOLO10_with_Adam":  "yolo_training" / "yolov10_Adam" / "weights" / "best.pt",
-    "YOLO12_with_SGD": "yolo_training" / "yolo12_SGD" / "weights" / "best.pt",
-    "YOLO12_with_AdamW":  "yolo_training" / "yolo12_AdamW" / "weights" / "best.pt",
-    "YOLO12_with_Adamax": "yolo_training" / "yolo12_Adamax" / "weights" / "best.pt",
-    "YOLO12_with_Adam":  "yolo_training" / "yolo12_Adam" / "weights" / "best.pt",
+    "YOLO10_with_SGD": BASE_DIR.parent.parent / "yolo_training" / "yolov10_SGD" / "weights" / "best.pt",
+    "YOLO10_with_AdamW": BASE_DIR.parent.parent / "yolo_training" / "yolov10_AdamW" / "weights" / "best.pt",
+    "YOLO10_with_Adamax": BASE_DIR.parent.parent / "yolo_training" / "yolov10_Adamax" / "weights" / "best.pt",
+    "YOLO10_with_Adam": BASE_DIR.parent.parent / "yolo_training" / "yolov10_Adam" / "weights" / "best.pt",
+    "YOLO12_with_SGD": BASE_DIR.parent.parent / "yolo_training" / "yolo12_SGD" / "weights" / "best.pt",
+    "YOLO12_with_AdamW": BASE_DIR.parent.parent / "yolo_training" / "yolo12_AdamW" / "weights" / "best.pt",
+    "YOLO12_with_Adamax": BASE_DIR.parent.parent / "yolo_training" / "yolo12_Adamax" / "weights" / "best.pt",
+    "YOLO12_with_Adam": BASE_DIR.parent.parent / "yolo_training" / "yolo12_Adam" / "weights" / "best.pt",
 }
 
 # CSV paths for metrics - updated to be relative to the new base directory
 csv_paths = {
-    "YOLO10_with_SGD":  "yolo_training" / "yolov10_SGD" / "overall_metrics.csv",
-    "YOLO10_with_AdamW":  "yolo_training" / "yolov10_AdamW" / "overall_metrics.csv",
-    "YOLO10_with_Adamax": "yolo_training" / "yolov10_Adamax" / "overall_metrics.csv",
-    "YOLO10_with_Adam": "yolo_training" / "yolov10_Adam" / "overall_metrics.csv",
-    "YOLO12_with_SGD":  "yolo_training" / "yolo12_SGD" / "overall_metrics.csv",
-    "YOLO12_with_AdamW": "yolo_training" / "yolo12_AdamW" / "overall_metrics.csv",
-    "YOLO12_with_Adamax":  "yolo_training" / "yolo12_Adamax" / "overall_metrics.csv",
-    "YOLO12_with_Adam": "yolo_training" / "yolo12_Adam" / "overall_metrics.csv"
+    "YOLO10_with_SGD": BASE_DIR.parent.parent / "yolo_training" / "yolov10_SGD" / "overall_metrics.csv",
+    "YOLO10_with_AdamW": BASE_DIR.parent.parent / "yolo_training" / "yolov10_AdamW" / "overall_metrics.csv",
+    "YOLO10_with_Adamax": BASE_DIR.parent.parent / "yolo_training" / "yolov10_Adamax" / "overall_metrics.csv",
+    "YOLO10_with_Adam": BASE_DIR.parent.parent / "yolo_training" / "yolov10_Adam" / "overall_metrics.csv",
+    "YOLO12_with_SGD": BASE_DIR.parent.parent / "yolo_training" / "yolo12_SGD" / "overall_metrics.csv",
+    "YOLO12_with_AdamW": BASE_DIR.parent.parent / "yolo_training" / "yolo12_AdamW" / "overall_metrics.csv",
+    "YOLO12_with_Adamax": BASE_DIR.parent.parent / "yolo_training" / "yolo12_Adamax" / "overall_metrics.csv",
+    "YOLO12_with_Adam": BASE_DIR.parent.parent / "yolo_training" / "yolo12_Adam" / "overall_metrics.csv"
 }
 
 # Image paths for evaluation plots - updated to be relative to the new base directory
