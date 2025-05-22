@@ -88,14 +88,14 @@ YOLO_CONFIG = {
 
 # Model paths
 MODEL_PATHS = {
-    "YOLO10_with_SGD": BASE_DIR / "yolo_training" / "yolov10_SGD" / "weights" / "best.pt",
-    "YOLO10_with_AdamW": BASE_DIR / "yolo_training" / "yolov10_AdamW" / "weights" / "best.pt",
-    "YOLO10_with_Adamax": BASE_DIR / "yolo_training" / "yolov10_Adamax" / "weights" / "best.pt",
-    "YOLO10_with_Adam": BASE_DIR / "yolo_training" / "yolov10_Adam" / "weights" / "best.pt",
-    "YOLO12_with_SGD": BASE_DIR / "yolo_training" / "yolo12_SGD" / "weights" / "best.pt",
-    "YOLO12_with_AdamW": BASE_DIR / "yolo_training" / "yolo12_AdamW" / "weights" / "best.pt",
-    "YOLO12_with_Adamax": BASE_DIR / "yolo_training" / "yolo12_Adamax" / "weights" / "best.pt",
-    "YOLO12_with_Adam": BASE_DIR / "yolo_training" / "yolo12_Adam" / "weights" / "best.pt",
+    "YOLO10_with_SGD": "yolo_training" / "yolov10_SGD" / "weights" / "best.pt",
+    "YOLO10_with_AdamW": "yolo_training" / "yolov10_AdamW" / "weights" / "best.pt",
+    "YOLO10_with_Adamax":  "yolo_training" / "yolov10_Adamax" / "weights" / "best.pt",
+    "YOLO10_with_Adam": "yolo_training" / "yolov10_Adam" / "weights" / "best.pt",
+    "YOLO12_with_SGD":  "yolo_training" / "yolo12_SGD" / "weights" / "best.pt",
+    "YOLO12_with_AdamW": "yolo_training" / "yolo12_AdamW" / "weights" / "best.pt",
+    "YOLO12_with_Adamax":  "yolo_training" / "yolo12_Adamax" / "weights" / "best.pt",
+    "YOLO12_with_Adam":  "yolo_training" / "yolo12_Adam" / "weights" / "best.pt",
 }
 
 # Filter valid models
@@ -112,25 +112,25 @@ for model_name, model_path in MODEL_PATHS.items():
 
 # CSV paths for metrics
 csv_paths = {
-    "YOLO10_with_SGD": BASE_DIR / "yolo_training" / "yolov10_SGD" / "overall_metrics.csv",
-    "YOLO10_with_AdamW": BASE_DIR / "yolo_training" / "yolov10_AdamW" / "overall_metrics.csv",
-    "YOLO10_with_Adamax": BASE_DIR / "yolo_training" / "yolov10_Adamax" / "overall_metrics.csv",
-    "YOLO10_with_Adam": BASE_DIR / "yolo_training" / "yolov10_Adam" / "overall_metrics.csv",
-    "YOLO12_with_SGD": BASE_DIR / "yolo_training" / "yolo12_SGD" / "overall_metrics.csv",
-    "YOLO12_with_AdamW": BASE_DIR / "yolo_training" / "yolo12_AdamW" / "overall_metrics.csv",
-    "YOLO12_with_Adamax": BASE_DIR / "yolo_training" / "yolo12_Adamax" / "overall_metrics.csv",
-    "YOLO12_with_Adam": BASE_DIR / "yolo_training" / "yolo12_Adam" / "overall_metrics.csv"
+    "YOLO10_with_SGD":  "yolo_training" / "yolov10_SGD" / "overall_metrics.csv",
+    "YOLO10_with_AdamW":  "yolo_training" / "yolov10_AdamW" / "overall_metrics.csv",
+    "YOLO10_with_Adamax": "yolo_training" / "yolov10_Adamax" / "overall_metrics.csv",
+    "YOLO10_with_Adam":  "yolo_training" / "yolov10_Adam" / "overall_metrics.csv",
+    "YOLO12_with_SGD":  "yolo_training" / "yolo12_SGD" / "overall_metrics.csv",
+    "YOLO12_with_AdamW":  "yolo_training" / "yolo12_AdamW" / "overall_metrics.csv",
+    "YOLO12_with_Adamax": "yolo_training" / "yolo12_Adamax" / "overall_metrics.csv",
+    "YOLO12_with_Adam": "yolo_training" / "yolo12_Adam" / "overall_metrics.csv"
 }
 
 # Image paths for evaluation plots
 IMAGE_PATHS_MAP = {
     "YOLO10_with_SGD": {
-        "Normalized Confusion Matrix": BASE_DIR / "yolo_training" / "yolov10_SGD" / "confusion_matrix_normalized.png",
-        "F1 Curve": BASE_DIR / "yolo_training" / "yolov10_SGD" / "F1_curve.png",
-        "Precision Curve": BASE_DIR / "yolo_training" / "yolov10_SGD" / "P_curve.png",
-        "Precision-Recall Curve": BASE_DIR / "yolo_training" / "yolov10_SGD" / "PR_curve.png",
-        "Recall Curve": BASE_DIR / "yolo_training" / "yolov10_SGD" / "R_curve.png",
-        "Results": BASE_DIR / "yolo_training" / "yolov10_SGD" / "results.png"
+        "Normalized Confusion Matrix": "yolo_training" / "yolov10_SGD" / "confusion_matrix_normalized.png",
+        "F1 Curve":  "yolo_training" / "yolov10_SGD" / "F1_curve.png",
+        "Precision Curve":"yolo_training" / "yolov10_SGD" / "P_curve.png",
+        "Precision-Recall Curve":  "yolo_training" / "yolov10_SGD" / "PR_curve.png",
+        "Recall Curve": "yolo_training" / "yolov10_SGD" / "R_curve.png",
+        "Results":"yolo_training" / "yolov10_SGD" / "results.png"
     },
     # Similar entries for other models (omitted for brevity, same structure as original)
 }
