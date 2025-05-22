@@ -57,6 +57,13 @@ class_map = {
     8.0: 'Truck'
 }
 
+from pathlib import Path
+import streamlit as st
+import logging
+
+# Define base directory
+BASE_DIR = Path(__file__).parent
+
 # Define base directory and dataset path
 root_dataset_path = BASE_DIR / "Raw Image" / "Raw Images"
 yolo_training_path = BASE_DIR / "yolo_training"
@@ -83,9 +90,9 @@ YOLO_CONFIG = {
     "yolo_training_path": yolo_training_path
 }
 
-# Model paths
+# Model paths (all as Path objects)
 MODEL_PATHS = {
-    "YOLO10_with_SGD": "yolo_training/yolov10_SGD/weights/best.pt",
+    "YOLO10_with_SGD": BASE_DIR / "yolo_training" / "yolov10_SGD" / "weights" / "best.pt",
     "YOLO10_with_AdamW": BASE_DIR / "yolo_training" / "yolov10_AdamW" / "weights" / "best.pt",
     "YOLO10_with_Adamax": BASE_DIR / "yolo_training" / "yolov10_Adamax" / "weights" / "best.pt",
     "YOLO10_with_Adam": BASE_DIR / "yolo_training" / "yolov10_Adam" / "weights" / "best.pt",
@@ -95,10 +102,15 @@ MODEL_PATHS = {
     "YOLO12_with_Adam": BASE_DIR / "yolo_training" / "yolo12_Adam" / "weights" / "best.pt",
 }
 
-# Validate model paths
+# Validate model paths and filter valid models
+valid_models = {name: path for name, path in MODEL_PATHS.items() if path.exists()}
 for model_name, model_path in MODEL_PATHS.items():
     if not model_path.exists():
         logger.warning(f"Model file not found: {model_path}")
+if not valid_models:
+    st.error("No valid model files found. Please ensure model weights are in the correct paths.")
+    logger.error("No valid model files found in MODEL_PATHS.")
+    st.stop()
 
 # CSV paths for metrics
 csv_paths = {
