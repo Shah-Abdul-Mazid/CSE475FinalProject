@@ -41,6 +41,9 @@ warnings.filterwarnings(
     module="streamlit.runtime.scriptrunner_utils"
 )
 
+# Define base directory
+BASE_DIR = Path(__file__).parent
+
 # Class mapping for object detection
 class_map = {
     0.0: 'Bike',
@@ -55,65 +58,137 @@ class_map = {
 }
 
 # Define base directory and dataset path
-root_dataset_path = Path("Raw Image") / "Raw Images"
-BASE_DIR = Path(os.path.dirname(os.path.abspath(__file__)))
+root_dataset_path = BASE_DIR / "Raw Image" / "Raw Images"
+yolo_training_path = BASE_DIR / "yolo_training"
 
+# Validate base directory
 if not BASE_DIR.exists():
     st.error(f"Base directory not found: {BASE_DIR}")
     logger.error(f"Base directory not found: {BASE_DIR}")
     st.stop()
 logger.info(f"Base Directory: {BASE_DIR}")
 
+# Validate dataset directory
+if not root_dataset_path.exists():
+    st.error(f"Dataset directory not found: {root_dataset_path}")
+    logger.error(f"Dataset directory not found: {root_dataset_path}")
+    st.stop()
+
 # Dataset configuration
 DATASET_CONFIG = {
     "root_dataset_path": root_dataset_path,
     "locations": ["Location 1 (Arambag)", "Location 2 (Shapla Chattar)", "Location 3 (Abul Hotel)", "Location4 (Bashabo)"]
 }
+YOLO_CONFIG = {
+    "yolo_training_path": yolo_training_path
+}
 
 # Model paths
 MODEL_PATHS = {
-    "YOLO10_with_SGD": BASE_DIR.parent.parent / "yolo_training" / "yolov10_SGD" / "weights" / "best.pt",
-    "YOLO10_with_AdamW": BASE_DIR.parent.parent / "yolo_training" / "yolov10_AdamW" / "weights" / "best.pt",
-    "YOLO10_with_Adamax": BASE_DIR.parent.parent / "yolo_training" / "yolov10_Adamax" / "weights" / "best.pt",
-    "YOLO10_with_Adam": BASE_DIR.parent.parent / "yolo_training" / "yolov10_Adam" / "weights" / "best.pt",
-    "YOLO12_with_SGD": BASE_DIR.parent.parent / "yolo_training" / "yolo12_SGD" / "weights" / "best.pt",
-    "YOLO12_with_AdamW": BASE_DIR.parent.parent / "yolo_training" / "yolo12_AdamW" / "weights" / "best.pt",
-    "YOLO12_with_Adamax": BASE_DIR.parent.parent / "yolo_training" / "yolo12_Adamax" / "weights" / "best.pt",
-    "YOLO12_with_Adam": BASE_DIR.parent.parent / "yolo_training" / "yolo12_Adam" / "weights" / "best.pt",
+    "YOLO10_with_SGD": BASE_DIR / "yolo_training" / "yolov10_SGD" / "weights" / "best.pt",
+    "YOLO10_with_AdamW": BASE_DIR / "yolo_training" / "yolov10_AdamW" / "weights" / "best.pt",
+    "YOLO10_with_Adamax": BASE_DIR / "yolo_training" / "yolov10_Adamax" / "weights" / "best.pt",
+    "YOLO10_with_Adam": BASE_DIR / "yolo_training" / "yolov10_Adam" / "weights" / "best.pt",
+    "YOLO12_with_SGD": BASE_DIR / "yolo_training" / "yolo12_SGD" / "weights" / "best.pt",
+    "YOLO12_with_AdamW": BASE_DIR / "yolo_training" / "yolo12_AdamW" / "weights" / "best.pt",
+    "YOLO12_with_Adamax": BASE_DIR / "yolo_training" / "yolo12_Adamax" / "weights" / "best.pt",
+    "YOLO12_with_Adam": BASE_DIR / "yolo_training" / "yolo12_Adam" / "weights" / "best.pt",
 }
+
+# Validate model paths
+for model_name, model_path in MODEL_PATHS.items():
+    if not model_path.exists():
+        logger.warning(f"Model file not found: {model_path}")
 
 # CSV paths for metrics
 csv_paths = {
-    "YOLO10_with_SGD": BASE_DIR.parent.parent / "yolo_training" / "yolov10_SGD" / "overall_metrics.csv",
-    "YOLO10_with_AdamW": BASE_DIR.parent.parent / "yolo_training" / "yolov10_AdamW" / "overall_metrics.csv",
-    "YOLO10_with_Adamax": BASE_DIR.parent.parent / "yolo_training" / "yolov10_Adamax" / "overall_metrics.csv",
-    "YOLO10_with_Adam": BASE_DIR.parent.parent / "yolo_training" / "yolov10_Adam" / "overall_metrics.csv",
-    "YOLO12_with_SGD": BASE_DIR.parent.parent / "yolo_training" / "yolo12_SGD" / "overall_metrics.csv",
-    "YOLO12_with_AdamW": BASE_DIR.parent.parent / "yolo_training" / "yolo12_AdamW" / "overall_metrics.csv",
-    "YOLO12_with_Adamax": BASE_DIR.parent.parent / "yolo_training" / "yolo12_Adamax" / "overall_metrics.csv",
-    "YOLO12_with_Adam": BASE_DIR.parent.parent / "yolo_training" / "yolo12_Adam" / "overall_metrics.csv"
+    "YOLO10_with_SGD": BASE_DIR / "yolo_training" / "yolov10_SGD" / "overall_metrics.csv",
+    "YOLO10_with_AdamW": BASE_DIR / "yolo_training" / "yolov10_AdamW" / "overall_metrics.csv",
+    "YOLO10_with_Adamax": BASE_DIR / "yolo_training" / "yolov10_Adamax" / "overall_metrics.csv",
+    "YOLO10_with_Adam": BASE_DIR / "yolo_training" / "yolov10_Adam" / "overall_metrics.csv",
+    "YOLO12_with_SGD": BASE_DIR / "yolo_training" / "yolo12_SGD" / "overall_metrics.csv",
+    "YOLO12_with_AdamW": BASE_DIR / "yolo_training" / "yolo12_AdamW" / "overall_metrics.csv",
+    "YOLO12_with_Adamax": BASE_DIR / "yolo_training" / "yolo12_Adamax" / "overall_metrics.csv",
+    "YOLO12_with_Adam": BASE_DIR / "yolo_training" / "yolo12_Adam" / "overall_metrics.csv"
 }
 
 # Image paths for evaluation plots
 IMAGE_PATHS_MAP = {
     "YOLO10_with_SGD": {
-        "Normalized Confusion Matrix": BASE_DIR.parent.parent / "yolo_training" / "yolov10_SGD" / "confusion_matrix_normalized.png",
-        "F1 Curve": BASE_DIR.parent.parent / "yolo_training" / "yolov10_SGD" / "F1_curve.png",
-        "Precision Curve": BASE_DIR.parent.parent / "yolo_training" / "yolov10_SGD" / "P_curve.png",
-        "Precision-Recall Curve": BASE_DIR.parent.parent / "yolo_training" / "yolov10_SGD" / "PR_curve.png",
-        "Recall Curve": BASE_DIR.parent.parent / "yolo_training" / "yolov10_SGD" / "R_curve.png",
-        "Results": BASE_DIR.parent.parent / "yolo_training" / "yolov10_SGD" / "results.png"
+        "Normalized Confusion Matrix": BASE_DIR / "yolo_training" / "yolov10_SGD" / "confusion_matrix_normalized.png",
+        "F1 Curve": BASE_DIR / "yolo_training" / "yolov10_SGD" / "F1_curve.png",
+        "Precision Curve": BASE_DIR / "yolo_training" / "yolov10_SGD" / "P_curve.png",
+        "Precision-Recall Curve": BASE_DIR / "yolo_training" / "yolov10_SGD" / "PR_curve.png",
+        "Recall Curve": BASE_DIR / "yolo_training" / "yolov10_SGD" / "R_curve.png",
+        "Results": BASE_DIR / "yolo_training" / "yolov10_SGD" / "results.png"
     },
-    # Add similar entries for other models if needed
+    "YOLO10_with_AdamW": {
+        "Normalized Confusion Matrix": BASE_DIR / "yolo_training" / "yolov10_AdamW" / "confusion_matrix_normalized.png",
+        "F1 Curve": BASE_DIR / "yolo_training" / "yolov10_AdamW" / "F1_curve.png",
+        "Precision Curve": BASE_DIR / "yolo_training" / "yolov10_AdamW" / "P_curve.png",
+        "Precision-Recall Curve": BASE_DIR / "yolo_training" / "yolov10_AdamW" / "PR_curve.png",
+        "Recall Curve": BASE_DIR / "yolo_training" / "yolov10_AdamW" / "R_curve.png",
+        "Results": BASE_DIR / "yolo_training" / "yolov10_AdamW" / "results.png"
+    },
+    "YOLO10_with_Adamax": {
+        "Normalized Confusion Matrix": BASE_DIR / "yolo_training" / "yolov10_Adamax" / "confusion_matrix_normalized.png",
+        "F1 Curve": BASE_DIR / "yolo_training" / "yolov10_Adamax" / "F1_curve.png",
+        "Precision Curve": BASE_DIR / "yolo_training" / "yolov10_Adamax" / "P_curve.png",
+        "Precision-Recall Curve": BASE_DIR / "yolo_training" / "yolov10_Adamax" / "PR_curve.png",
+        "Recall Curve": BASE_DIR / "yolo_training" / "yolov10_Adamax" / "R_curve.png",
+        "Results": BASE_DIR / "yolo_training" / "yolov10_Adamax" / "results.png"
+    },
+    "YOLO10_with_Adam": {
+        "Normalized Confusion Matrix": BASE_DIR / "yolo_training" / "yolov10_Adam" / "confusion_matrix_normalized.png",
+        "F1 Curve": BASE_DIR / "yolo_training" / "yolov10_Adam" / "F1_curve.png",
+        "Precision Curve": BASE_DIR / "yolo_training" / "yolov10_Adam" / "P_curve.png",
+        "Precision-Recall Curve": BASE_DIR / "yolo_training" / "yolov10_Adam" / "PR_curve.png",
+        "Recall Curve": BASE_DIR / "yolo_training" / "yolov10_Adam" / "R_curve.png",
+        "Results": BASE_DIR / "yolo_training" / "yolov10_Adam" / "results.png"
+    },
+    "YOLO12_with_SGD": {
+        "Normalized Confusion Matrix": BASE_DIR / "yolo_training" / "yolo12_SGD" / "confusion_matrix_normalized.png",
+        "F1 Curve": BASE_DIR / "yolo_training" / "yolo12_SGD" / "F1_curve.png",
+        "Precision Curve": BASE_DIR / "yolo_training" / "yolo12_SGD" / "P_curve.png",
+        "Precision-Recall Curve": BASE_DIR / "yolo_training" / "yolo12_SGD" / "PR_curve.png",
+        "Recall Curve": BASE_DIR / "yolo_training" / "yolo12_SGD" / "R_curve.png",
+        "Results": BASE_DIR / "yolo_training" / "yolo12_SGD" / "results.png"
+    },
+    "YOLO12_with_AdamW": {
+        "Normalized Confusion Matrix": BASE_DIR / "yolo_training" / "yolo12_AdamW" / "confusion_matrix_normalized.png",
+        "F1 Curve": BASE_DIR / "yolo_training" / "yolo12_AdamW" / "F1_curve.png",
+        "Precision Curve": BASE_DIR / "yolo_training" / "yolo12_AdamW" / "P_curve.png",
+        "Precision-Recall Curve": BASE_DIR / "yolo_training" / "yolo12_AdamW" / "PR_curve.png",
+        "Recall Curve": BASE_DIR / "yolo_training" / "yolo12_AdamW" / "R_curve.png",
+        "Results": BASE_DIR / "yolo_training" / "yolo12_AdamW" / "results.png"
+    },
+    "YOLO12_with_Adamax": {
+        "Normalized Confusion Matrix": BASE_DIR / "yolo_training" / "yolo12_Adamax" / "confusion_matrix_normalized.png",
+        "F1 Curve": BASE_DIR / "yolo_training" / "yolo12_Adamax" / "F1_curve.png",
+        "Precision Curve": BASE_DIR / "yolo_training" / "yolo12_Adamax" / "P_curve.png",
+        "Precision-Recall Curve": BASE_DIR / "yolo_training" / "yolo12_Adamax" / "PR_curve.png",
+        "Recall Curve": BASE_DIR / "yolo_training" / "yolo12_Adamax" / "R_curve.png",
+        "Results": BASE_DIR / "yolo_training" / "yolo12_Adamax" / "results.png"
+    },
+    "YOLO12_with_Adam": {
+        "Normalized Confusion Matrix": BASE_DIR / "yolo_training" / "yolo12_Adam" / "confusion_matrix_normalized.png",
+        "F1 Curve": BASE_DIR / "yolo_training" / "yolo12_Adam" / "F1_curve.png",
+        "Precision Curve": BASE_DIR / "yolo_training" / "yolo12_Adam" / "P_curve.png",
+        "Precision-Recall Curve": BASE_DIR / "yolo_training" / "yolo12_Adam" / "PR_curve.png",
+        "Recall Curve": BASE_DIR / "yolo_training" / "yolo12_Adam" / "R_curve.png",
+        "Results": BASE_DIR / "yolo_training" / "yolo12_Adam" / "results.png"
+    }
 }
 
-# Placeholder functions (replace with actual implementations)
 def get_model(model_path):
     """Load and return the YOLO model."""
     try:
+        if not model_path.exists():
+            raise FileNotFoundError(f"Model file not found: {model_path}")
         return YOLO(model_path)
     except Exception as e:
         logger.error(f"Failed to load model {model_path}: {str(e)}")
+        st.error(f"Failed to load model: {str(e)}")
         return None
 
 def run_inference(model, image):
@@ -121,39 +196,52 @@ def run_inference(model, image):
     try:
         if isinstance(image, Image.Image):
             image = np.array(image)
+        if image is None or image.size == 0:
+            raise ValueError("Invalid or empty image")
         results = model(image)
+        if results is None:
+            raise ValueError("Model returned no results")
         return results
     except Exception as e:
         logger.error(f"Inference error: {str(e)}")
+        st.error(f"Inference error: {str(e)}")
         return None
 
 def draw_boxes_on_image(image, results, class_map):
     """Draw bounding boxes on the image."""
-    if isinstance(image, np.ndarray):
-        image = Image.fromarray(image)
-    draw = ImageDraw.Draw(image)
-    for result in results:
-        for box in result.boxes:
-            xyxy = box.xyxy[0].cpu().numpy()
-            cls_id = box.cls.cpu().numpy()
-            conf = box.conf.cpu().numpy()
-            label = f"{class_map.get(float(cls_id), 'Unknown')} {conf:.2f}"
-            draw.rectangle(xyxy, outline="red", width=2)
-            draw.text((xyxy[0], xyxy[1]), label, fill="red")
-    return image
+    try:
+        if isinstance(image, np.ndarray):
+            image = Image.fromarray(image)
+        draw = ImageDraw.Draw(image)
+        for result in results:
+            for box in result.boxes:
+                xyxy = box.xyxy[0].cpu().numpy()
+                cls_id = box.cls.cpu().numpy()[0]
+                conf = box.conf.cpu().numpy()[0]
+                label = f"{class_map.get(float(cls_id), 'Unknown')} {conf:.2f}"
+                draw.rectangle(xyxy, outline="red", width=2)
+                draw.text((xyxy[0], xyxy[1]), label, fill="red")
+        return image
+    except Exception as e:
+        logger.error(f"Error drawing boxes: {str(e)}")
+        st.error(f"Error drawing boxes: {str(e)}")
+        return image
 
 def grad_cam_and_save(model_path, img_path, save_dir, use_multi_layer, file_prefix):
     """Generate and save Grad-CAM visualization."""
     try:
         model = YOLO(model_path)
-        cam = EigenCAM(model, target_layers=[model.model.model[-2]])  # Example layer
+        cam = EigenCAM(model, target_layers=[model.model.model[-2]])  # Adjust layer if needed
         img = cv2.imread(img_path)
+        if img is None:
+            raise ValueError(f"Failed to load image: {img_path}")
         cam_img = show_cam_on_image(img, cam(img))
         output_path = os.path.join(save_dir, f"{file_prefix}_gradcam.jpg")
         cv2.imwrite(output_path, cam_img)
         return output_path
     except Exception as e:
         logger.error(f"Grad-CAM error: {str(e)}")
+        st.error(f"Grad-CAM error: {str(e)}")
         return None
 
 def get_device():
@@ -165,17 +253,22 @@ def validate_best_model(model_path, device, data_yaml, project_dir, name):
     try:
         model = YOLO(model_path)
         metrics = model.val(data=data_yaml, device=device, project=project_dir, name=name)
-        # Mock DataFrame (replace with actual metrics extraction)
-        return pd.DataFrame({
+        results_dict = metrics.results_dict
+        df_metrics = pd.DataFrame({
             "Class": list(class_map.values()),
-            "Precision": [0.9] * len(class_map),
-            "Recall": [0.85] * len(class_map),
-            "F1-Score": [0.87] * len(class_map),
-            "mAP@0.5": [0.88] * len(class_map),
-            "mAP@0.5:0.95": [0.65] * len(class_map)
+            "Precision": [results_dict.get(f"metrics/precision({cls})", 0) for cls in class_map.values()],
+            "Recall": [results_dict.get(f"metrics/recall({cls})", 0) for cls in class_map.values()],
+            "F1-Score": [2 * (p * r) / (p + r + 1e-16) for p, r in zip(
+                [results_dict.get(f"metrics/precision({cls})", 0) for cls in class_map.values()],
+                [results_dict.get(f"metrics/recall({cls})", 0) for cls in class_map.values()]
+            )],
+            "mAP@0.5": [results_dict.get(f"metrics/mAP50({cls})", 0) for cls in class_map.values()],
+            "mAP@0.5:0.95": [results_dict.get(f"metrics/mAP50:95({cls})", 0) for cls in class_map.values()]
         })
+        return df_metrics
     except Exception as e:
-        logger.error(f"Validation error: {str(e)}")
+        logger.error(f"Validation error for {model_path}: {str(e)}")
+        st.error(f"Validation error: {str(e)}")
         return None
 
 def display_images_grid(title, image_paths):
@@ -186,21 +279,43 @@ def display_images_grid(title, image_paths):
             st.image(str(path), caption=name, use_container_width=True)
         else:
             st.warning(f"Image not found: {path}")
+            logger.warning(f"Image not found: {path}")
 
 def real_time_inference(model, device, video_source, frame_size):
     """Perform real-time inference using webcam."""
-    st.warning("Real-time inference not implemented in this placeholder.")
-    logger.info("Real-time inference called but not implemented.")
+    try:
+        cap = cv2.VideoCapture(video_source)
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, frame_size)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, frame_size)
+        stframe = st.empty()
+        stop_button = st.button("Stop Inference")
+        while cap.isOpened() and not stop_button:
+            ret, frame = cap.read()
+            if not ret:
+                break
+            results = run_inference(model, frame)
+            if results:
+                img_annotated = draw_boxes_on_image(Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)), results, class_map)
+                stframe.image(img_annotated, channels="RGB", use_container_width=True)
+            time.sleep(1/30)  # Control frame rate
+        cap.release()
+    except Exception as e:
+        logger.error(f"Real-time inference error: {str(e)}")
+        st.error(f"Real-time inference error: {str(e)}")
 
 def get_available_codec():
     """Return an available video codec."""
-    return "mp4v"  # Example codec
+    return "mp4v"
 
 def main():
     """Main function to run the Streamlit app."""
+    icon_path = BASE_DIR / "assets" / "artificial-intelligence.png"
+    if not icon_path.exists():
+        logger.warning(f"Icon file not found: {icon_path}")
+        icon_path = None
     st.set_page_config(
         page_title="Machine Learning-MRAR",
-        page_icon=str(BASE_DIR.parent.parent / "assets" / "artificial-intelligence.png"),
+        page_icon=str(icon_path) if icon_path else None,
         layout="wide"
     )
     
@@ -268,11 +383,13 @@ def main():
         - Integrate with traffic systems for real-time monitoring.
         - Add features like vehicle counting or speed estimation.
         """)
-        poster_path = BASE_DIR.parent.parent / "assets" / "poster.jpg"
+        poster_path = BASE_DIR / "assets" / "poster.jpg"
         if poster_path.exists():
             st.image(poster_path, caption="Traffic in Dhaka, Bangladesh", use_container_width=True)
+        else:
+            logger.warning(f"Poster image not found: {poster_path}")
         st.markdown("---")
-        developer_path = BASE_DIR.parent.parent / "assets" / "developer.jpg"
+        developer_path = BASE_DIR / "assets" / "developer.jpg"
         if developer_path.exists():
             st.markdown("""
                 <div style='text-align: center; margin-top: 30px;'>
@@ -285,6 +402,8 @@ def main():
                 """.format(
                     developer_img_base64=base64.b64encode(open(developer_path, "rb").read()).decode()
                 ), unsafe_allow_html=True)
+        else:
+            logger.warning(f"Developer image not found: {developer_path}")
 
     elif selected == "Dataset":
         st.subheader("Dataset Preview")
@@ -306,31 +425,27 @@ def main():
                             image_paths.append(Path(dirpath) / filename)
                 return image_paths
 
-            if root_dataset_path.exists():
-                all_image_paths = get_image_paths(root_dataset_path)
-                if all_image_paths:
-                    num_samples = min(num_images, len(all_image_paths))
-                    samples = random.sample(all_image_paths, num_samples)
-                    
-                    for i in range(0, len(samples), images_per_row):
-                        cols = st.columns(images_per_row)
-                        for j, img_path in enumerate(samples[i:i+images_per_row]):
-                            try:
-                                with Image.open(img_path) as img:
-                                    cols[j].image(
-                                        img,
-                                        caption=img_path.name,
-                                        use_container_width=True
-                                    )
-                            except Exception as e:
-                                cols[j].warning(f"Failed to load {img_path.name}: {str(e)}")
-                                logger.error(f"Failed to load image {img_path}: {str(e)}")
-                else:
-                    st.warning(f"No images found in: {root_dataset_path}")
-                    logger.warning(f"No images found in: {root_dataset_path}")
+            all_image_paths = get_image_paths(root_dataset_path)
+            if all_image_paths:
+                num_samples = min(num_images, len(all_image_paths))
+                samples = random.sample(all_image_paths, num_samples)
+                
+                for i in range(0, len(samples), images_per_row):
+                    cols = st.columns(images_per_row)
+                    for j, img_path in enumerate(samples[i:i+images_per_row]):
+                        try:
+                            with Image.open(img_path) as img:
+                                cols[j].image(
+                                    img,
+                                    caption=img_path.name,
+                                    use_container_width=True
+                                )
+                        except Exception as e:
+                            cols[j].warning(f"Failed to load {img_path.name}: {str(e)}")
+                            logger.error(f"Failed to load image {img_path}: {str(e)}")
             else:
-                st.error(f"Dataset directory not found at: {root_dataset_path}")
-                logger.error(f"Dataset directory not found at: {root_dataset_path}")
+                st.warning(f"No images found in: {root_dataset_path}")
+                logger.warning(f"No images found in: {root_dataset_path}")
         except Exception as e:
             st.error(f"Error in Dataset section: {str(e)}")
             logger.error(f"Error in Dataset section: {str(e)}")
@@ -448,6 +563,40 @@ def main():
                     use_container_width=True
                 )
 
+                # Bar chart for mAP@0.5
+                st.markdown("### mAP@0.5 Comparison Across Classes")
+                chart_data = {
+                    "type": "bar",
+                    "data": {
+                        "labels": df_metrics["Class"].tolist(),
+                        "datasets": [{
+                            "label": f"{model_name} mAP@0.5",
+                            "data": df_metrics["mAP@0.5"].tolist(),
+                            "backgroundColor": ["#FF6384", "#36A2EB", "#FFCE56", "#4BC0C0", "#9966FF", "#FF9F40", "#C9CBCF", "#7BC225", "#FF5733"],
+                            "borderColor": ["#FF6384", "#36A2EB", "#FFCE56", "#4BC0C0", "#9966FF", "#FF9F40", "#C9CBCF", "#7BC225", "#FF5733"],
+                            "borderWidth": 1
+                        }]
+                    },
+                    "options": {
+                        "scales": {
+                            "y": {
+                                "beginAtZero": True,
+                                "title": {
+                                    "display": True,
+                                    "text": "mAP@0.5"
+                                }
+                            },
+                            "x": {
+                                "title": {
+                                    "display": True,
+                                    "text": "Classes"
+                                }
+                            }
+                        }
+                    }
+                }
+                st.json(chart_data)  # Display as JSON for canvas rendering
+
             st.subheader(f"{model_name} Confusion Matrix and Curves")
             if image_paths:
                 display_images_grid(f"{model_name} Plots", image_paths)
@@ -513,6 +662,7 @@ def main():
                 out = cv2.VideoWriter(output_video_path, fourcc, fps, (frame_width, frame_height))
 
                 frame_count = 0
+                progress_bar = st.progress(0)
                 with st.spinner(f"Processing {total_frames} frames..."):
                     while True:
                         ret, frame = cap.read()
@@ -524,6 +674,7 @@ def main():
                             frame_out = cv2.cvtColor(np.array(img_annotated), cv2.COLOR_RGB2BGR)
                             out.write(frame_out)
                         frame_count += 1
+                        progress_bar.progress(min(frame_count / total_frames, 1.0))
                         if frame_count % 50 == 0:
                             st.text(f"Processed {frame_count}/{total_frames} frames")
                             logger.info(f"Processed {frame_count}/{total_frames} frames")
