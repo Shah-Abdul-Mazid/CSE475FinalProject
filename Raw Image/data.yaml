@@ -1,0 +1,5 @@
+train: D:/CSE475_Project/Bd_Traffic_Dataset_v6/Bangladeshi Traffic Flow Dataset/Bangladeshi Traffic Flow Dataset/split_dataset/train/images
+val: D:/CSE475_Project/Bd_Traffic_Dataset_v6/Bangladeshi Traffic Flow Dataset/Bangladeshi Traffic Flow Dataset/split_dataset/val/images
+test: D:/CSE475_Project/Bd_Traffic_Dataset_v6/Bangladeshi Traffic Flow Dataset/Bangladeshi Traffic Flow Dataset/split_dataset/test/images
+nc: 9
+names: [ 'Bike', 'Bus', 'Car', 'Cng', 'Cycle', 'Mini-Truck', 'People', 'Rickshaw', 'Truck' ]
