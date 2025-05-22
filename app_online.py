@@ -19,8 +19,8 @@ import io
 import base64
 from datetime import datetime
 
-from YOLO_V11_CAM.yolo_cam.eigen_cam import EigenCAM
-from YOLO_V11_CAM.yolo_cam.utils.image import scale_cam_image, show_cam_on_image
+from yolo_cam.eigen_cam import EigenCAM
+from yolo_cam.utils.image import scale_cam_image, show_cam_on_image
 
 # Suppress specific warnings
 sys.modules['torch._classes'] = None
