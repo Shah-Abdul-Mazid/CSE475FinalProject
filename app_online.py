@@ -55,7 +55,7 @@ class_map = {
 }
 
 # Define base directory
-BASE_DIR = Path("CSE475FinalProject/Raw Image/Raw Images/")
+BASE_DIR = Path("Raw Image/Raw Images/")
 if not BASE_DIR.exists():
     st.error(f"Base directory not found: {BASE_DIR}")
     logger.error(f"Base directory not found: {BASE_DIR}")
