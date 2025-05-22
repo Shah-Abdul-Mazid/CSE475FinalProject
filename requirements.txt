@@ -9,3 +9,4 @@ opencv-python
 matplotlib
 opencv-python-headless
 ttach
+plotly
