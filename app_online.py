@@ -54,8 +54,11 @@ class_map = {
     8.0: 'Truck'
 }
 
-# Define base directory
-BASE_DIR = Path("Raw Image/Raw Images/")
+from pathlib import Path
+root_dataset_path = Path("Raw Image") / "Raw Images"
+BASE_DIR = Path(os.path.dirname(os.path.abspath(__file__)))
+
+
 if not BASE_DIR.exists():
     st.error(f"Base directory not found: {BASE_DIR}")
     logger.error(f"Base directory not found: {BASE_DIR}")
@@ -64,7 +67,7 @@ logger.info(f"Base Directory: {BASE_DIR}")
 
 # Dataset configuration
 DATASET_CONFIG = {
-    "root_dataset_path": BASE_DIR,  # Updated to use the new base directory
+    "root_dataset_path": root_dataset_path,  # Updated to use the new base directory
     "locations": ["Location 1 (Arambag)", "Location 2 (Shapla Chattar)", "Location 3 (Abul Hotel)", "Location4 (Bashabo)"]  # Replace with actual location names
 }
 
@@ -203,7 +206,7 @@ def main():
         images_per_row = st.number_input("Images per row:", min_value=1, max_value=10, value=5)
 
         # Updated dataset path construction
-        root_dataset_path = "Raw Image" / "Raw Images"
+        root_dataset_path = root_dataset_path
         
         @st.cache_data
         def get_image_paths(root_path):
