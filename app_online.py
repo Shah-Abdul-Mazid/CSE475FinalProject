@@ -65,31 +65,31 @@ logger.info(f"Base Directory: {BASE_DIR}")
 # Dataset configuration
 DATASET_CONFIG = {
     "root_dataset_path": BASE_DIR,  # Updated to use the new base directory
-    "locations": ["Location1", "Location2", "Location3", "Location4"]  # Replace with actual location names
+    "locations": ["Location 1 (Arambag)", "Location 2 (Shapla Chattar)", "Location 3 (Abul Hotel)", "Location4 (Bashabo)"]  # Replace with actual location names
 }
 
 # Model paths - updated to be relative to the new base directory
 MODEL_PATHS = {
-    "YOLO10_with_SGD": BASE_DIR.parent.parent / "yolo_training" / "yolov10_SGD" / "weights" / "best.pt",
-    "YOLO10_with_AdamW": BASE_DIR.parent.parent / "yolo_training" / "yolov10_AdamW" / "weights" / "best.pt",
-    "YOLO10_with_Adamax": BASE_DIR.parent.parent / "yolo_training" / "yolov10_Adamax" / "weights" / "best.pt",
-    "YOLO10_with_Adam": BASE_DIR.parent.parent / "yolo_training" / "yolov10_Adam" / "weights" / "best.pt",
-    "YOLO12_with_SGD": BASE_DIR.parent.parent / "yolo_training" / "yolo12_SGD" / "weights" / "best.pt",
-    "YOLO12_with_AdamW": BASE_DIR.parent.parent / "yolo_training" / "yolo12_AdamW" / "weights" / "best.pt",
-    "YOLO12_with_Adamax": BASE_DIR.parent.parent / "yolo_training" / "yolo12_Adamax" / "weights" / "best.pt",
-    "YOLO12_with_Adam": BASE_DIR.parent.parent / "yolo_training" / "yolo12_Adam" / "weights" / "best.pt",
+    "YOLO10_with_SGD": "yolo_training" / "yolov10_SGD" / "weights" / "best.pt",
+    "YOLO10_with_AdamW": "yolo_training" / "yolov10_AdamW" / "weights" / "best.pt",
+    "YOLO10_with_Adamax": "yolo_training" / "yolov10_Adamax" / "weights" / "best.pt",
+    "YOLO10_with_Adam":  "yolo_training" / "yolov10_Adam" / "weights" / "best.pt",
+    "YOLO12_with_SGD": "yolo_training" / "yolo12_SGD" / "weights" / "best.pt",
+    "YOLO12_with_AdamW":  "yolo_training" / "yolo12_AdamW" / "weights" / "best.pt",
+    "YOLO12_with_Adamax": "yolo_training" / "yolo12_Adamax" / "weights" / "best.pt",
+    "YOLO12_with_Adam":  "yolo_training" / "yolo12_Adam" / "weights" / "best.pt",
 }
 
 # CSV paths for metrics - updated to be relative to the new base directory
 csv_paths = {
-    "YOLO10_with_SGD": BASE_DIR.parent.parent / "yolo_training" / "yolov10_SGD" / "overall_metrics.csv",
-    "YOLO10_with_AdamW": BASE_DIR.parent.parent / "yolo_training" / "yolov10_AdamW" / "overall_metrics.csv",
-    "YOLO10_with_Adamax": BASE_DIR.parent.parent / "yolo_training" / "yolov10_Adamax" / "overall_metrics.csv",
-    "YOLO10_with_Adam": BASE_DIR.parent.parent / "yolo_training" / "yolov10_Adam" / "overall_metrics.csv",
-    "YOLO12_with_SGD": BASE_DIR.parent.parent / "yolo_training" / "yolo12_SGD" / "overall_metrics.csv",
-    "YOLO12_with_AdamW": BASE_DIR.parent.parent / "yolo_training" / "yolo12_AdamW" / "overall_metrics.csv",
-    "YOLO12_with_Adamax": BASE_DIR.parent.parent / "yolo_training" / "yolo12_Adamax" / "overall_metrics.csv",
-    "YOLO12_with_Adam": BASE_DIR.parent.parent / "yolo_training" / "yolo12_Adam" / "overall_metrics.csv"
+    "YOLO10_with_SGD":  "yolo_training" / "yolov10_SGD" / "overall_metrics.csv",
+    "YOLO10_with_AdamW":  "yolo_training" / "yolov10_AdamW" / "overall_metrics.csv",
+    "YOLO10_with_Adamax": "yolo_training" / "yolov10_Adamax" / "overall_metrics.csv",
+    "YOLO10_with_Adam": "yolo_training" / "yolov10_Adam" / "overall_metrics.csv",
+    "YOLO12_with_SGD":  "yolo_training" / "yolo12_SGD" / "overall_metrics.csv",
+    "YOLO12_with_AdamW": "yolo_training" / "yolo12_AdamW" / "overall_metrics.csv",
+    "YOLO12_with_Adamax":  "yolo_training" / "yolo12_Adamax" / "overall_metrics.csv",
+    "YOLO12_with_Adam": "yolo_training" / "yolo12_Adam" / "overall_metrics.csv"
 }
 
 # Image paths for evaluation plots - updated to be relative to the new base directory
@@ -202,32 +202,44 @@ def main():
         num_images = st.number_input("Number of images to preview:", min_value=1, max_value=100, value=5)
         images_per_row = st.number_input("Images per row:", min_value=1, max_value=10, value=5)
 
-        root_dataset_path = DATASET_CONFIG["root_dataset_path"]
+        # Updated dataset path construction
+        root_dataset_path = "Raw Image" / "Raw Images"
         
         @st.cache_data
         def get_image_paths(root_path):
-            return [str(path) for path in root_path.rglob("*.[pP][nN][gG]") + 
-                    root_path.rglob("*.[jJ][pP][gG]") + root_path.rglob("*.[jJ][pP][eE][gG]")]
+            """Safely get all image paths from directory and subdirectories"""
+            image_extensions = ('.png', '.jpg', '.jpeg', '.PNG', '.JPG', '.JPEG')
+            image_paths = []
+            for dirpath, _, filenames in os.walk(root_path):
+                for filename in filenames:
+                    if filename.lower().endswith(image_extensions):
+                        image_paths.append(Path(dirpath) / filename)
+            return image_paths
 
         if root_dataset_path.exists():
             all_image_paths = get_image_paths(root_dataset_path)
             if all_image_paths:
-                samples = random.sample(all_image_paths, min(num_images, len(all_image_paths)))
+                # Ensure we don't request more images than available
+                num_samples = min(num_images, len(all_image_paths))
+                samples = random.sample(all_image_paths, num_samples)
+                
+                # Display images in a grid
                 for i in range(0, len(samples), images_per_row):
                     cols = st.columns(images_per_row)
                     for j, img_path in enumerate(samples[i:i+images_per_row]):
                         try:
-                            image = Image.open(img_path)
-                            cols[j].image(image, caption=Path(img_path).name, use_container_width=True)
+                            with Image.open(img_path) as img:
+                                cols[j].image(
+                                    img,
+                                    caption=img_path.name,
+                                    use_container_width=True
+                                )
                         except Exception as e:
-                            cols[j].warning(f"Failed to load image: {img_path}. Error: {str(e)}")
-                            logger.error(f"Failed to load image {img_path}: {str(e)}")
+                            cols[j].warning(f"Failed to load {img_path.name}: {str(e)}")
             else:
-                st.warning("No image files found.")
-                logger.warning("No image files found in dataset directory")
+                st.warning(f"No images found in: {root_dataset_path}")
         else:
-            st.error(f"Dataset not found at: {root_dataset_path}")
-            logger.error(f"Dataset not found at: {root_dataset_path}")
+            st.error(f"Dataset directory not found at: {root_dataset_path}")
 
     elif selected == "Model":
         st.subheader("Run Inference on Uploaded Image")
