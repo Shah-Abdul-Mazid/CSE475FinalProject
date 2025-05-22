@@ -8,3 +8,4 @@ numpy
 opencv-python
 matplotlib
 opencv-python-headless
+ttach
