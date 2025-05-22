@@ -85,8 +85,8 @@ YOLO_CONFIG = {
 
 # Model paths
 MODEL_PATHS = {
-    "YOLO10_with_SGD": BASE_DIR / "yolo_training" / "yolov10_SGD" / "weights" / "best.pt",
-    "YOLO10_with_AdamW": BASE_DIR / "yolo_training" / "yolov10_AdamW" / "weights" / "best.pt",
+    "YOLO10_with_SGD": yolo_training_path / "yolov10_SGD" / "weights" / "best.pt",
+    "YOLO10_with_AdamW": yolo_training_path / "yolov10_AdamW" / "weights" / "best.pt",
     "YOLO10_with_Adamax": BASE_DIR / "yolo_training" / "yolov10_Adamax" / "weights" / "best.pt",
     "YOLO10_with_Adam": BASE_DIR / "yolo_training" / "yolov10_Adam" / "weights" / "best.pt",
     "YOLO12_with_SGD": BASE_DIR / "yolo_training" / "yolo12_SGD" / "weights" / "best.pt",
@@ -115,7 +115,7 @@ csv_paths = {
 # Image paths for evaluation plots
 IMAGE_PATHS_MAP = {
     "YOLO10_with_SGD": {
-        "Normalized Confusion Matrix": BASE_DIR / "yolo_training" / "yolov10_SGD" / "confusion_matrix_normalized.png",
+        "Normalized Confusion Matrix": yolo_training_path / "yolov10_SGD" / "confusion_matrix_normalized.png",
         "F1 Curve": BASE_DIR / "yolo_training" / "yolov10_SGD" / "F1_curve.png",
         "Precision Curve": BASE_DIR / "yolo_training" / "yolov10_SGD" / "P_curve.png",
         "Precision-Recall Curve": BASE_DIR / "yolo_training" / "yolov10_SGD" / "PR_curve.png",
