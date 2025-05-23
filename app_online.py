@@ -25,7 +25,7 @@ from yolo_cam.eigen_cam import EigenCAM
 from yolo_cam.utils.image import scale_cam_image, show_cam_on_image
 
 # Patch Streamlit's LocalSourcesWatcher to avoid torch.classes error
-import streamlit.watcher.local_sources_watcher as lsw
+import lsw
 
 original_extract_paths = lsw.extract_paths
 
