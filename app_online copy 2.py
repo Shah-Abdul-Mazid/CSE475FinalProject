@@ -98,7 +98,7 @@ MODEL_PATHS = {
     "YOLO10_with_SGD": BASE_DIR / "yolo_training" / "yolov10_SGD" / "weights" / "best.pt",
     "YOLO10_with_AdamW": BASE_DIR / "yolo_training" / "yolov10_AdamW" / "weights" / "best.pt",
     "YOLO10_with_Adamax": BASE_DIR / "yolo_training" / "yolov10_Adamax" / "weights" / "best.pt",
-    "YOLO10_with_Adam": BASE_DIR / "yolo_training" / "yolov10_Adam" / "weights" / "best.pt",
+    "YOLO10_with_Adam": BASE_DIR / "yolo_training" / "yolo10_Adam" / "weights" / "best.pt",
     "YOLO12_with_SGD": BASE_DIR / "yolo_training" / "yolo12_SGD" / "weights" / "best.pt",
     "YOLO12_with_AdamW": BASE_DIR / "yolo_training" / "yolo12_AdamW" / "weights" / "best.pt",
     "YOLO12_with_Adamax": BASE_DIR / "yolo_training" / "yolo12_Adamax" / "weights" / "best.pt",
@@ -154,12 +154,12 @@ IMAGE_PATHS_MAP = {
         "Results": BASE_DIR / "yolo_training" / "yolov10_Adamax" / "results.png"
     },
     "YOLO10_with_Adam": {
-        "Normalized Confusion Matrix": BASE_DIR / "yolo_training" / "yolo10_Adam" / "confusion_matrix_normalized.png",
-        "F1 Curve": BASE_DIR / "yolo_training" / "yolo10_Adam" / "F1_curve.png",
+        "Normalized Confusion Matrix": BASE_DIR / "yolo_training" / "yolov10_Adam" / "confusion_matrix_normalized.png",
+        "F1 Curve": BASE_DIR / "yolo_training" / "yolov10_Adam" / "F1_curve.png",
         "Precision Curve": BASE_DIR / "yolo_training" / "yolo10_Adam" / "P_curve.png",
         "Precision-Recall Curve": BASE_DIR / "yolo_training" / "yolo10_Adam" / "PR_curve.png",
         "Recall Curve": BASE_DIR / "yolo_training" / "yolo10_Adam" / "R_curve.png",
-        "Results": BASE_DIR / "yolo_training" / "yolo10_Adam" / "results.png"
+        "Results": BASE_DIR / "yolo_training" / "yolov10_Adam" / "results.png"
     },
     "YOLO12_with_SGD": {
         "Normalized Confusion Matrix": BASE_DIR / "yolo_training" / "yolo12_SGD" / "confusion_matrix_normalized.png",
@@ -676,23 +676,24 @@ def main():
                 # Open input video
                 cap = cv2.VideoCapture(input_video_path)
                 if not cap.isOpened():
-                    st.error("Error: Could not open the input video file. Ensure the file is a valid video format (MP4, AVI, MOV) and not corrupted. Try converting the video using FFmpeg (e.g., `ffmpeg -i input.mov -c:v libx264 output.mp4`).")
+                    st.error("Error: Could not open the input video file. Ensure the file is a valid video format (MP4, AVI, MOV) and not corrupted.")
                     logger.error(f"Could not open video file: {input_video_path}")
                     return
 
-                # Get and log video properties
+                # Get video properties
                 frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH) * resize_factor)
                 frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT) * resize_factor)
-                # Ensure even dimensions (required by some codecs)
-                frame_width = frame_width if frame_width % 2 == 0 else frame_width + 1
-                frame_height = frame_height if frame_height % 2 == 0 else frame_height + 1
                 fps = int(cap.get(cv2.CAP_PROP_FPS)) or 30  # Default to 30 FPS if not available
                 total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
                 frames_to_process = total_frames // frame_skip
-                logger.info(f"Input video properties: resolution={frame_width}x{frame_height}, fps={fps}, total_frames={total_frames}, frames_to_process={frames_to_process}")
 
-                # Check for H.264 codec
-                codec = "avc1"  # Force H.264 for compatibility
+                # Check for available codec
+                codec = get_available_codec()
+                if not codec:
+                    st.error("Error: No supported video codec found. Install FFmpeg and ensure OpenCV is built with FFmpeg support. On Linux, run `sudo apt-get install ffmpeg`. On Windows, install FFmpeg and add it to PATH.")
+                    logger.error("No supported video codec found.")
+                    cap.release()
+                    return
                 fourcc = cv2.VideoWriter_fourcc(*codec)
                 logger.info(f"Using codec: {codec}")
 
@@ -700,7 +701,7 @@ def main():
                 output_video_path = os.path.join(tempfile.gettempdir(), f"output_{datetime.now().strftime('%Y%m%d_%H%M%S')}.mp4")
                 out = cv2.VideoWriter(output_video_path, fourcc, fps, (frame_width, frame_height))
                 if not out.isOpened():
-                    st.error(f"Error: Could not initialize video writer with H.264 codec. Ensure FFmpeg is installed (`sudo apt-get install ffmpeg` on Linux, or add FFmpeg to PATH on Windows) and OpenCV is built with FFmpeg support. Try a different codec like 'mp4v' if issues persist.")
+                    st.error(f"Error: Could not initialize video writer with codec {codec}. Ensure FFmpeg is installed and OpenCV is built with FFmpeg support. Check logs for details.")
                     logger.error(f"Could not initialize video writer with codec {codec}.")
                     cap.release()
                     return
@@ -745,15 +746,6 @@ def main():
                 out.release()
                 logger.info(f"Output video saved to: {output_video_path}")
 
-                # Verify output video
-                output_cap = cv2.VideoCapture(output_video_path)
-                if not output_cap.isOpened() or output_cap.get(cv2.CAP_PROP_FRAME_COUNT) == 0:
-                    st.error(f"Error: Output video is corrupt or empty. Check if FFmpeg is installed and supports H.264 encoding. Try playing the video with VLC to diagnose. Output path: {output_video_path}")
-                    logger.error(f"Output video is corrupt or empty: {output_video_path}")
-                    output_cap.release()
-                    return
-                output_cap.release()
-
                 # Display output video
                 st.subheader("Processed Output Video")
                 if os.path.exists(output_video_path):
@@ -773,29 +765,28 @@ def main():
                     )
                     logger.info("Download button provided for processed video")
                 else:
-                    st.error(f"Error: Output video file was not created. Check logs for details. Output path: {output_video_path}")
+                    st.error("Error: Output video file was not created. Check logs for details.")
                     logger.error(f"Output video file not found: {output_video_path}")
 
             except Exception as e:
-                st.error(f"Error processing video: {str(e)}. Ensure FFmpeg is installed, the video format is supported (convert using `ffmpeg -i input.mov -c:v libx264 output.mp4` if needed), and sufficient disk space is available.")
+                st.error(f"Error processing video: {str(e)}. Ensure FFmpeg is installed, the video format is supported, and sufficient disk space is available.")
                 logger.error(f"Error processing video: {str(e)}")
             finally:
-                # Clean up temporary files after display
+                # Clean up temporary files
                 if input_video_path and os.path.exists(input_video_path):
                     try:
                         os.unlink(input_video_path)
                         logger.info(f"Deleted temporary input file: {input_video_path}")
                     except Exception as e:
                         logger.warning(f"Failed to delete input file {input_video_path}: {str(e)}")
-                # Keep output video for debugging; remove manually if needed
                 if output_video_path and os.path.exists(output_video_path):
-                    logger.info(f"Output video retained for debugging: {output_video_path}")
-                    # Uncomment to enable cleanup
-                    # try:
-                    #     os.unlink(output_video_path)
-                    #     logger.info(f"Deleted temporary output file: {output_video_path}")
-                    # except Exception as e:
-                    #     logger.warning(f"Failed to delete output file {output_video_path}: {str(e)}")
+                    try:
+                        os.unlink(output_video_path)
+                        logger.info(f"Deleted temporary output file: {output_video_path}")
+                    except Exception as e:
+                        logger.warning(f"Failed to delete output file {output_video_path}: {str(e)}")
+        else:
+            st.warning("Please upload a video and select a model.")
 
 if __name__ == "__main__":
     main()
