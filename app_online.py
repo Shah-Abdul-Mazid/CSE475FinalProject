@@ -115,12 +115,11 @@ if not valid_models:
     logger.error("No valid model files found in MODEL_PATHS.")
     st.stop()
 
-# CSV paths for metrics
 csv_paths = {
     "YOLO10_with_SGD": BASE_DIR / "yolo_training" / "yolov10_SGD" / "overall_metrics.csv",
     "YOLO10_with_AdamW": BASE_DIR / "yolo_training" / "yolov10_AdamW" / "overall_metrics.csv",
     "YOLO10_with_Adamax": BASE_DIR / "yolo_training" / "yolov10_Adamax" / "overall_metrics.csv",
-    "YOLO10_with_Adam": BASE_DIR / "yolo_training" / "yolo10_Adam" / "overall_metrics.csv",
+    "YOLO10_with_Adam": BASE_DIR / "yolo_training" / "yolov10_Adam" / "overall_metrics.csv",
     "YOLO12_with_SGD": BASE_DIR / "yolo_training" / "yolo12_SGD" / "overall_metrics.csv",
     "YOLO12_with_AdamW": BASE_DIR / "yolo_training" / "yolo12_AdamW" / "overall_metrics.csv",
     "YOLO12_with_Adamax": BASE_DIR / "yolo_training" / "yolo12_Adamax" / "overall_metrics.csv",
@@ -154,12 +153,12 @@ IMAGE_PATHS_MAP = {
         "Results": BASE_DIR / "yolo_training" / "yolov10_Adamax" / "results.png"
     },
     "YOLO10_with_Adam": {
-        "Normalized Confusion Matrix": BASE_DIR / "yolo_training" / "yolo10_Adam" / "confusion_matrix_normalized.png",
-        "F1 Curve": BASE_DIR / "yolo_training" / "yolo10_Adam" / "F1_curve.png",
-        "Precision Curve": BASE_DIR / "yolo_training" / "yolo10_Adam" / "P_curve.png",
-        "Precision-Recall Curve": BASE_DIR / "yolo_training" / "yolo10_Adam" / "PR_curve.png",
-        "Recall Curve": BASE_DIR / "yolo_training" / "yolo10_Adam" / "R_curve.png",
-        "Results": BASE_DIR / "yolo_training" / "yolo10_Adam" / "results.png"
+        "Normalized Confusion Matrix": BASE_DIR / "yolo_training" / "yolov10_Adam" / "confusion_matrix_normalized.png",
+        "F1 Curve": BASE_DIR / "yolo_training" / "yolov10_Adam" / "F1_curve.png",
+        "Precision Curve": BASE_DIR / "yolo_training" / "yolov10_Adam" / "P_curve.png",
+        "Precision-Recall Curve": BASE_DIR / "yolo_training" / "yolov10_Adam" / "PR_curve.png",
+        "Recall Curve": BASE_DIR / "yolo_training" / "yolov10_Adam" / "R_curve.png",
+        "Results": BASE_DIR / "yolo_training" / "yolov10_Adam" / "results.png"
     },
     "YOLO12_with_SGD": {
         "Normalized Confusion Matrix": BASE_DIR / "yolo_training" / "yolo12_SGD" / "confusion_matrix_normalized.png",
