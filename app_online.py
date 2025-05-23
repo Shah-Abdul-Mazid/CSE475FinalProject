@@ -622,22 +622,17 @@ def main():
         st.subheader("Real-time Object Detection")
         st.write("Perform object detection using your webcam. Click 'Stop Inference' to end the session.")
         model_choice_rt = st.selectbox("Select YOLO Model for Real-time Detection", ["select a model"] + list(valid_models.keys()))
+        video_source = st.number_input("Video Source Index", min_value=0, value=0, step=1)
+        frame_size = st.slider("Frame Width", min_value=320, max_value=1280, value=640, step=32)
 
-        video_source = find_camera()
-        if video_source is None:
-            st.error("No camera found. Please connect a webcam and ensure it’s accessible. Run `ls /dev/video*` to check available devices and `sudo usermod -a -G video $USER` to ensure permissions.")
-            logger.error("No camera found during enumeration.")
-        else:
-            st.write(f"Using camera at index {video_source}")
-            frame_size = st.slider("Frame Width", min_value=320, max_value=1280, value=640, step=32)
-            if model_choice_rt != "select a model":
-                model_path = valid_models.get(model_choice_rt)
-                model = get_model(model_path)
-                if model:
-                    st.info("Starting webcam inference. Click 'Stop Inference' to stop.")
-                    real_time_inference(model, get_device(), video_source, frame_size)
-                else:
-                    st.error("Model could not be loaded.")
+        if model_choice_rt != "select a model":
+            model_path = valid_models.get(model_choice_rt)
+            model = get_model(model_path)
+            if model:
+                st.info("Starting webcam inference. Click 'Stop Inference' to stop.")
+                real_time_inference(model, get_device(), video_source, frame_size)
+            else:
+                st.error("Model could not be loaded.")
 
     elif selected == "Upload Video":
         st.subheader("Upload a Video for Inference")
