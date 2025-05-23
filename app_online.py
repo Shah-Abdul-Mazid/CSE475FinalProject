@@ -224,20 +224,49 @@ def run_inference(model, image):
         st.error(f"Inference error: {str(e)}")
         return None
 
+from PIL import ImageFont  # Add this import at the top of your script if not already present
+
 def draw_boxes_on_image(image, results, class_map):
-    """Draw bounding boxes on the image."""
+    """Draw dark bounding boxes with larger, clear confidence scores on the image."""
     try:
         if isinstance(image, np.ndarray):
             image = Image.fromarray(image)
         draw = ImageDraw.Draw(image)
+
+        # Load a custom font with increased size
+        try:
+            font = ImageFont.truetype("arial.ttf", 20)  # Increase font size to 20 (adjust as needed)
+        except IOError:
+            # Fallback to default font if arial.ttf is not found
+            font = ImageFont.load_default()
+            logger.warning("Arial font not found; falling back to default font. Text size increase may be limited.")
+
         for result in results:
             for box in result.boxes:
+                # Extract bounding box coordinates, class ID, and confidence
                 xyxy = box.xyxy[0].cpu().numpy()
                 cls_id = box.cls.cpu().numpy()[0]
                 conf = box.conf.cpu().numpy()[0]
                 label = f"{class_map.get(float(cls_id), 'Unknown')} {conf:.2f}"
-                draw.rectangle(xyxy, outline="red", width=2)
-                draw.text((xyxy[0], xyxy[1]), label, fill="red")
+
+                # Draw a dark bounding box with thicker line
+                draw.rectangle(xyxy, outline="black", width=4)
+
+                # Calculate text position (above the bounding box)
+                text_x = xyxy[0]
+                text_y = xyxy[1] - 30 if xyxy[1] - 30 > 0 else xyxy[1] + 30  # Adjusted for larger text
+
+                # Calculate the size of the text for the background rectangle
+                bbox = draw.textbbox((text_x, text_y), label, font=font)
+                text_width = bbox[2] - bbox[0]
+                text_height = bbox[3] - bbox[1]
+
+                # Draw a filled background rectangle for the text (e.g., semi-transparent black)
+                background_coords = [text_x, text_y, text_x + text_width, text_y + text_height]
+                draw.rectangle(background_coords, fill=(0, 0, 0, 180))  # Black with some transparency
+
+                # Draw the label text in a contrasting color (e.g., white) with the custom font
+                draw.text((text_x, text_y), label, fill="white", font=font)
         return image
     except Exception as e:
         logger.error(f"Error drawing boxes: {str(e)}")
