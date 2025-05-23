@@ -23,6 +23,8 @@ from logging.handlers import RotatingFileHandler
 import plotly.express as px
 from yolo_cam.eigen_cam import EigenCAM
 from yolo_cam.utils.image import scale_cam_image, show_cam_on_image
+
+# Setup logging
 handler = RotatingFileHandler("app.log", maxBytes=10*1024*1024, backupCount=5)
 logging.basicConfig(
     handlers=[handler],
@@ -96,7 +98,7 @@ MODEL_PATHS = {
     "YOLO10_with_SGD": BASE_DIR / "yolo_training" / "yolov10_SGD" / "weights" / "best.pt",
     "YOLO10_with_AdamW": BASE_DIR / "yolo_training" / "yolov10_AdamW" / "weights" / "best.pt",
     "YOLO10_with_Adamax": BASE_DIR / "yolo_training" / "yolov10_Adamax" / "weights" / "best.pt",
-    "YOLO10_with_Adam": BASE_DIR / "yolo_training" / "yolov10_Adam" / "weights" / "best.pt",
+    "YOLO10_with_Adam": BASE_DIR / "yolo_training" / "yolo10_Adam" / "weights" / "best.pt",
     "YOLO12_with_SGD": BASE_DIR / "yolo_training" / "yolo12_SGD" / "weights" / "best.pt",
     "YOLO12_with_AdamW": BASE_DIR / "yolo_training" / "yolo12_AdamW" / "weights" / "best.pt",
     "YOLO12_with_Adamax": BASE_DIR / "yolo_training" / "yolo12_Adamax" / "weights" / "best.pt",
@@ -643,6 +645,10 @@ def main():
         st.write("Upload an MP4, AVI, or MOV video to run object detection using the selected YOLO model. The input video will be shown first, followed by the processed video.")
         video_file = st.file_uploader("Upload Video", type=["mp4", "avi", "mov"])
         model_choice_vid = st.selectbox("Select YOLO Model for Video Inference", ["select a model"] + list(valid_models.keys()))
+        
+        # Additional options for video processing
+        resize_factor = st.slider("Output Video Resize Factor", min_value=0.1, max_value=1.0, value=1.0, step=0.1, help="Reduce resolution to speed up processing (e.g., 0.5 for half size).")
+        frame_skip = st.slider("Process Every Nth Frame", min_value=1, max_value=10, value=1, step=1, help="Process every Nth frame to speed up processing (1 = process all frames).")
 
         if video_file is not None and model_choice_vid != "select a model":
             # Display input video
@@ -655,6 +661,7 @@ def main():
             model = get_model(model_path)
             if not model:
                 st.error("Model could not be loaded.")
+                logger.error("Model could not be loaded.")
                 return
 
             input_video_path = None
@@ -669,19 +676,21 @@ def main():
                 # Open input video
                 cap = cv2.VideoCapture(input_video_path)
                 if not cap.isOpened():
-                    st.error("Error: Could not open the input video file. Ensure the file is a valid video format (MP4, AVI, MOV).")
+                    st.error("Error: Could not open the input video file. Ensure the file is a valid video format (MP4, AVI, MOV) and not corrupted.")
                     logger.error(f"Could not open video file: {input_video_path}")
                     return
 
-                frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-                frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                # Get video properties
+                frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH) * resize_factor)
+                frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT) * resize_factor)
                 fps = int(cap.get(cv2.CAP_PROP_FPS)) or 30  # Default to 30 FPS if not available
                 total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+                frames_to_process = total_frames // frame_skip
 
                 # Check for available codec
                 codec = get_available_codec()
                 if not codec:
-                    st.error("Error: No supported video codec found. Ensure OpenCV supports 'avc1', 'mp4v', or 'XVID' and FFmpeg is installed.")
+                    st.error("Error: No supported video codec found. Install FFmpeg and ensure OpenCV is built with FFmpeg support. On Linux, run `sudo apt-get install ffmpeg`. On Windows, install FFmpeg and add it to PATH.")
                     logger.error("No supported video codec found.")
                     cap.release()
                     return
@@ -692,32 +701,46 @@ def main():
                 output_video_path = os.path.join(tempfile.gettempdir(), f"output_{datetime.now().strftime('%Y%m%d_%H%M%S')}.mp4")
                 out = cv2.VideoWriter(output_video_path, fourcc, fps, (frame_width, frame_height))
                 if not out.isOpened():
-                    st.error(f"Error: Could not initialize video writer with codec {codec}. Ensure FFmpeg is installed and OpenCV is built with FFmpeg support.")
+                    st.error(f"Error: Could not initialize video writer with codec {codec}. Ensure FFmpeg is installed and OpenCV is built with FFmpeg support. Check logs for details.")
                     logger.error(f"Could not initialize video writer with codec {codec}.")
                     cap.release()
                     return
 
                 # Process video
                 st.subheader("Processing Video")
+                progress_bar = st.progress(0)
+                status_text = st.empty()
                 frame_count = 0
-                with st.spinner(f"Processing {total_frames} frames..."):
+                processed_count = 0
+                with st.spinner(f"Processing {frames_to_process} frames..."):
                     while True:
                         ret, frame = cap.read()
                         if not ret:
                             break
-                        results = run_inference(model, frame)
-                        if results:
-                            img_annotated = draw_boxes_on_image(Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)), results, class_map)
-                            frame_out = cv2.cvtColor(np.array(img_annotated), cv2.COLOR_RGB2BGR)
-                            logger.info(f"Frame {frame_count}: Inference successful, writing annotated frame")
-                            out.write(frame_out)
+                        if frame_count % frame_skip == 0:
+                            # Resize frame if needed
+                            if resize_factor < 1.0:
+                                frame = cv2.resize(frame, (frame_width, frame_height), interpolation=cv2.INTER_AREA)
+                            results = run_inference(model, frame)
+                            if results:
+                                img_annotated = draw_boxes_on_image(Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)), results, class_map)
+                                frame_out = cv2.cvtColor(np.array(img_annotated), cv2.COLOR_RGB2BGR)
+                                logger.info(f"Frame {frame_count}: Inference successful, writing annotated frame")
+                                out.write(frame_out)
+                            else:
+                                logger.warning(f"Frame {frame_count}: Inference failed, writing original frame")
+                                out.write(frame)
+                            processed_count += 1
+                            # Update progress
+                            progress = min(processed_count / frames_to_process, 1.0)
+                            progress_bar.progress(progress)
+                            status_text.text(f"Processed {processed_count}/{frames_to_process} frames")
                         else:
-                            logger.warning(f"Frame {frame_count}: Inference failed, writing original frame")
+                            # Write original frame for skipped frames
+                            if resize_factor < 1.0:
+                                frame = cv2.resize(frame, (frame_width, frame_height), interpolation=cv2.INTER_AREA)
                             out.write(frame)
                         frame_count += 1
-                        if frame_count % 50 == 0:
-                            st.text(f"Processed {frame_count}/{total_frames} frames")
-                            logger.info(f"Processed {frame_count}/{total_frames} frames")
 
                 cap.release()
                 out.release()
@@ -731,12 +754,22 @@ def main():
                     st.video(output_video_bytes, format="video/mp4")
                     st.success("Video processing complete and displayed successfully!")
                     logger.info("Processed video displayed successfully in Streamlit")
+
+                    # Provide download option
+                    st.subheader("Download Processed Video")
+                    st.download_button(
+                        label="Download Output Video",
+                        data=output_video_bytes,
+                        file_name=f"processed_video_{datetime.now().strftime('%Y%m%d_%H%M%S')}.mp4",
+                        mime="video/mp4"
+                    )
+                    logger.info("Download button provided for processed video")
                 else:
-                    st.error("Error: Output video file was not created.")
+                    st.error("Error: Output video file was not created. Check logs for details.")
                     logger.error(f"Output video file not found: {output_video_path}")
 
             except Exception as e:
-                st.error(f"Error processing video: {str(e)}")
+                st.error(f"Error processing video: {str(e)}. Ensure FFmpeg is installed, the video format is supported, and sufficient disk space is available.")
                 logger.error(f"Error processing video: {str(e)}")
             finally:
                 # Clean up temporary files
