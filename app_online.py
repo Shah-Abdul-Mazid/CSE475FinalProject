@@ -629,13 +629,11 @@ def main():
             input_video_path = None
             output_video_path = None
             try:
-                # Save input video to a temporary file
                 with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as tfile:
                     tfile.write(video_file.read())
                     input_video_path = tfile.name
                 logger.info(f"Input video saved to: {input_video_path}")
 
-                # Validate input video
                 cap = cv2.VideoCapture(input_video_path)
                 if not cap.isOpened():
                     st.error("Error: Could not open the input video file. Ensure the file is a valid video format (MP4, AVI, MOV).")

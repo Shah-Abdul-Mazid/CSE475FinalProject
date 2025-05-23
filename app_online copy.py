@@ -143,7 +143,7 @@ IMAGE_PATHS_MAP = {
         "Precision Curve": BASE_DIR / "yolo_training" / "yolov10_AdamW" / "P_curve.png",
         "Precision-Recall Curve": BASE_DIR / "yolo_training" / "yolov10_AdamW" / "PR_curve.png",
         "Recall Curve": BASE_DIR / "yolo_training" / "yolov10_AdamW" / "R_curve.png",
-        "Results": BASE_DIR / "yolo_training" / "yolo12_AdamW" / "results.png"
+        "Results": BASE_DIR / "yolo_training" / "yolov10_AdamW" / "results.png"
     },
     "YOLO10_with_Adamax": {
         "Normalized Confusion Matrix": BASE_DIR / "yolo_training" / "yolov10_Adamax" / "confusion_matrix_normalized.png",
@@ -618,8 +618,20 @@ def main():
         st.write("Upload an MP4, AVI, or MOV video to run object detection using the selected YOLO model.")
         video_file = st.file_uploader("Upload Video", type=["mp4", "avi", "mov"])
         model_choice_vid = st.selectbox("Select YOLO Model for Video Inference", ["select a model"] + list(MODEL_PATHS.keys()))
+        save_permanently = st.checkbox("Save videos permanently", key="save_videos")
+        save_dir = st.text_input("Output directory (optional)", "videos")
 
-        if video_file is not None and model_choice_vid != "select a model":
+        if st.button("Process Video"):
+            if video_file is None or model_choice_vid == "select a model":
+                st.warning("Please upload a video and select a model.")
+                return
+
+            # Validate video file size
+            if video_file.size < 1024:  # Check if file is too small (e.g., <1KB)
+                st.error("Error: Uploaded video file is too small or corrupted.")
+                logger.error("Uploaded video file is too small or corrupted.")
+                return
+
             model_path = MODEL_PATHS.get(model_choice_vid)
             model = get_model(model_path)
             if not model:
@@ -629,19 +641,26 @@ def main():
             input_video_path = None
             output_video_path = None
             try:
-                # Save input video to a temporary file
-                with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as tfile:
-                    tfile.write(video_file.read())
-                    input_video_path = tfile.name
+                # Store video based on user preference
+                if save_permanently:
+                    os.makedirs(save_dir, exist_ok=True)
+                    input_video_path = os.path.join(save_dir, video_file.name)
+                    with open(input_video_path, "wb") as f:
+                        f.write(video_file.read())
+                else:
+                    with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as tfile:
+                        tfile.write(video_file.read())
+                        input_video_path = tfile.name
                 logger.info(f"Input video saved to: {input_video_path}")
 
-                # Validate input video
+                # Open the video
                 cap = cv2.VideoCapture(input_video_path)
                 if not cap.isOpened():
                     st.error("Error: Could not open the input video file. Ensure the file is a valid video format (MP4, AVI, MOV).")
                     logger.error(f"Could not open video file: {input_video_path}")
                     return
 
+                # Get video properties
                 frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
                 frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
                 fps = int(cap.get(cv2.CAP_PROP_FPS)) or 30  # Default to 30 FPS if not available
@@ -658,7 +677,10 @@ def main():
                 logger.info(f"Using codec: {codec}")
 
                 # Create output video file
-                output_video_path = os.path.join(tempfile.gettempdir(), f"output_{datetime.now().strftime('%Y%m%d_%H%M%S')}.mp4")
+                if save_permanently:
+                    output_video_path = os.path.join(save_dir, f"output_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{video_file.name}")
+                else:
+                    output_video_path = os.path.join(tempfile.gettempdir(), f"output_{datetime.now().strftime('%Y%m%d_%H%M%S')}.mp4")
                 out = cv2.VideoWriter(output_video_path, fourcc, fps, (frame_width, frame_height))
                 if not out.isOpened():
                     st.error(f"Error: Could not initialize video writer with codec {codec}.")
@@ -666,9 +688,11 @@ def main():
                     cap.release()
                     return
 
+                # Process video with progress bar
+                progress_bar = st.progress(0)
                 st.info(f"Processing video with {total_frames} frames...")
-                frame_count = 0
                 with st.spinner(f"Processing {total_frames} frames..."):
+                    frame_count = 0
                     while True:
                         ret, frame = cap.read()
                         if not ret:
@@ -681,19 +705,25 @@ def main():
                         else:
                             out.write(frame)  # Write original frame if inference fails
                         frame_count += 1
+                        progress_bar.progress(frame_count / total_frames)
                         if frame_count % 50 == 0:
-                            st.text(f"Processed {frame_count}/{total_frames} frames")
                             logger.info(f"Processed {frame_count}/{total_frames} frames")
 
                 cap.release()
                 out.release()
                 logger.info(f"Output video saved to: {output_video_path}")
 
-                # Display the video
+                # Display the video and offer download
                 if os.path.exists(output_video_path):
                     with open(output_video_path, "rb") as video_file:
                         video_bytes = video_file.read()
                     st.video(video_bytes, format="video/mp4")
+                    st.download_button(
+                        label="Download Processed Video",
+                        data=video_bytes,
+                        file_name=os.path.basename(output_video_path),
+                        mime="video/mp4"
+                    )
                     st.success("Video processing complete and displayed successfully!")
                     logger.info("Video displayed successfully in Streamlit")
                 else:
@@ -704,21 +734,15 @@ def main():
                 st.error(f"Error processing video: {str(e)}")
                 logger.error(f"Error processing video: {str(e)}")
             finally:
-                # Clean up temporary files
-                if input_video_path and os.path.exists(input_video_path):
-                    try:
-                        os.unlink(input_video_path)
-                        logger.info(f"Deleted temporary input file: {input_video_path}")
-                    except Exception as e:
-                        logger.warning(f"Failed to delete input file {input_video_path}: {str(e)}")
-                if output_video_path and os.path.exists(output_video_path):
-                    try:
-                        os.unlink(output_video_path)
-                        logger.info(f"Deleted temporary output file: {output_video_path}")
-                    except Exception as e:
-                        logger.warning(f"Failed to delete output file {output_video_path}: {str(e)}")
-        else:
-            st.warning("Please upload a video and select a model.")
+                # Clean up temporary files if not saving permanently
+                if not save_permanently:
+                    for path in [input_video_path, output_video_path]:
+                        if path and os.path.exists(path):
+                            try:
+                                os.unlink(path)
+                                logger.info(f"Deleted temporary file: {path}")
+                            except Exception as e:
+                                logger.warning(f"Failed to delete file {path}: {str(e)}")
 
-if __name__ == "__main__":
-    main()
+    if __name__ == "__main__":
+        main()
