@@ -315,7 +315,7 @@ def real_time_inference(model, device, video_source=0):
     if st.button("Stop Inference"):
         st.session_state.stop_inference = True
 
-    cap = cv2.camera_input(video_source)
+    cap = cv2.VideoWriter(video_source)
     if not cap.isOpened():
         st.error("Error opening video stream. Try a different video source index.")
         return
