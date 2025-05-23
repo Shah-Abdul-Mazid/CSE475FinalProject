@@ -24,6 +24,23 @@ import plotly.express as px
 from yolo_cam.eigen_cam import EigenCAM
 from yolo_cam.utils.image import scale_cam_image, show_cam_on_image
 
+# Patch Streamlit's LocalSourcesWatcher to avoid torch.classes error
+import streamlit.watcher.local_sources_watcher as lsw
+
+original_extract_paths = lsw.extract_paths
+
+def patched_extract_paths(module):
+    if module.__name__ == "torch.classes":
+        return []
+    return original_extract_paths(module)
+
+lsw.extract_paths = patched_extract_paths
+
+# Ensure asyncio event loop for Python 3.13 compatibility
+if not asyncio.get_event_loop().is_running():
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+
 # Configure logging with rotating file handler
 handler = RotatingFileHandler("app.log", maxBytes=10*1024*1024, backupCount=5)
 logging.basicConfig(
@@ -120,7 +137,7 @@ csv_paths = {
     "YOLO10_with_SGD": BASE_DIR / "yolo_training" / "yolov10_SGD" / "overall_metrics.csv",
     "YOLO10_with_AdamW": BASE_DIR / "yolo_training" / "yolov10_AdamW" / "overall_metrics.csv",
     "YOLO10_with_Adamax": BASE_DIR / "yolo_training" / "yolov10_Adamax" / "overall_metrics.csv",
-    "YOLO10_with_Adam": BASE_DIR / "yolo_training" / "yolov10_Adam" / "overall_metrics.csv",
+    "YOLO10_with_Adam": BASE_DIR / "yolo_training" / "yolo10_Adam" / "overall_metrics.csv",
     "YOLO12_with_SGD": BASE_DIR / "yolo_training" / "yolo12_SGD" / "overall_metrics.csv",
     "YOLO12_with_AdamW": BASE_DIR / "yolo_training" / "yolo12_AdamW" / "overall_metrics.csv",
     "YOLO12_with_Adamax": BASE_DIR / "yolo_training" / "yolo12_Adamax" / "overall_metrics.csv",
@@ -156,9 +173,9 @@ IMAGE_PATHS_MAP = {
     "YOLO10_with_Adam": {
         "Normalized Confusion Matrix": BASE_DIR / "yolo_training" / "yolov10_Adam" / "confusion_matrix_normalized.png",
         "F1 Curve": BASE_DIR / "yolo_training" / "yolov10_Adam" / "F1_curve.png",
-        "Precision Curve": BASE_DIR / "yolo_training" / "yolov10_Adam" / "P_curve.png",
-        "Precision-Recall Curve": BASE_DIR / "yolo_training" / "yolov10_Adam" / "PR_curve.png",
-        "Recall Curve": BASE_DIR / "yolo_training" / "yolov10_Adam" / "R_curve.png",
+        "Precision Curve": BASE_DIR / "yolo_training" / "yolo10_Adam" / "P_curve.png",
+        "Precision-Recall Curve": BASE_DIR / "yolo_training" / "yolo10_Adam" / "PR_curve.png",
+        "Recall Curve": BASE_DIR / "yolo_training" / "yolo10_Adam" / "R_curve.png",
         "Results": BASE_DIR / "yolo_training" / "yolov10_Adam" / "results.png"
     },
     "YOLO12_with_SGD": {
@@ -298,10 +315,28 @@ def display_images_grid(title, image_paths):
             st.warning(f"Image not found: {path}")
             logger.warning(f"Image not found: {path}")
 
+def find_camera():
+    """Find an available camera index."""
+    for index in range(5):  # Try indices 0 to 4
+        cap = cv2.VideoCapture(index)
+        if cap.isOpened():
+            cap.release()
+            return index
+        cap.release()
+    return None
+
 def real_time_inference(model, device, video_source, frame_size):
     """Perform real-time inference using webcam."""
     try:
+        # Try V4L2 backend first
         cap = cv2.VideoCapture(video_source)
+        if not cap.isOpened():
+            # Fallback to GStreamer
+            cap = cv2.VideoCapture(f"v4l2src device=/dev/video{video_source} ! videoconvert ! appsink", cv2.CAP_GSTREAMER)
+            if not cap.isOpened():
+                st.error(f"Failed to open camera at index {video_source}. Ensure the camera is connected, permissions are set (add user to 'video' group), and drivers are installed.")
+                logger.error(f"Failed to open camera at index {video_source} with V4L2 and GStreamer")
+                return
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, frame_size)
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, frame_size)
         stframe = st.empty()
@@ -310,6 +345,8 @@ def real_time_inference(model, device, video_source, frame_size):
             start_time = time.time()
             ret, frame = cap.read()
             if not ret:
+                st.error("Failed to read frame from camera.")
+                logger.error("Failed to read frame from camera.")
                 break
             results = run_inference(model, frame)
             if results:
@@ -323,15 +360,17 @@ def real_time_inference(model, device, video_source, frame_size):
         st.error(f"Real-time inference error: {str(e)}")
 
 def get_available_codec():
-    """Return an available video codec."""
-    codecs = ["mp4v", "avc1", "XVID"]
+    """Return an available video codec, prioritizing H.264."""
+    codecs = ["avc1", "mp4v", "XVID"]
     for codec in codecs:
         try:
             fourcc = cv2.VideoWriter_fourcc(*codec)
             temp_out = cv2.VideoWriter("test.mp4", fourcc, 30, (640, 480))
+            if temp_out.isOpened():
+                temp_out.release()
+                os.remove("test.mp4")
+                return codec
             temp_out.release()
-            os.remove("test.mp4")
-            return codec
         except:
             continue
     return None
@@ -601,26 +640,37 @@ def main():
         st.subheader("Real-time Object Detection")
         st.write("Perform object detection using your webcam. Click 'Stop Inference' to end the session.")
         model_choice_rt = st.selectbox("Select YOLO Model for Real-time Detection", ["select a model"] + list(valid_models.keys()))
-        video_source = st.number_input("Video Source Index", min_value=0, value=0, step=1)
-        frame_size = st.slider("Frame Width", min_value=320, max_value=1280, value=640, step=32)
 
-        if model_choice_rt != "select a model":
-            model_path = valid_models.get(model_choice_rt)
-            model = get_model(model_path)
-            if model:
-                st.info("Starting webcam inference. Click 'Stop Inference' to stop.")
-                real_time_inference(model, get_device(), video_source, frame_size)
-            else:
-                st.error("Model could not be loaded.")
+        video_source = find_camera()
+        if video_source is None:
+            st.error("No camera found. Please connect a webcam and ensure it’s accessible. Run `ls /dev/video*` to check available devices and `sudo usermod -a -G video $USER` to ensure permissions.")
+            logger.error("No camera found during enumeration.")
+        else:
+            st.write(f"Using camera at index {video_source}")
+            frame_size = st.slider("Frame Width", min_value=320, max_value=1280, value=640, step=32)
+            if model_choice_rt != "select a model":
+                model_path = valid_models.get(model_choice_rt)
+                model = get_model(model_path)
+                if model:
+                    st.info("Starting webcam inference. Click 'Stop Inference' to stop.")
+                    real_time_inference(model, get_device(), video_source, frame_size)
+                else:
+                    st.error("Model could not be loaded.")
 
     elif selected == "Upload Video":
         st.subheader("Upload a Video for Inference")
-        st.write("Upload an MP4, AVI, or MOV video to run object detection using the selected YOLO model.")
+        st.write("Upload an MP4, AVI, or MOV video to run object detection using the selected YOLO model. The input video will be shown first, followed by the processed video.")
         video_file = st.file_uploader("Upload Video", type=["mp4", "avi", "mov"])
-        model_choice_vid = st.selectbox("Select YOLO Model for Video Inference", ["select a model"] + list(MODEL_PATHS.keys()))
+        model_choice_vid = st.selectbox("Select YOLO Model for Video Inference", ["select a model"] + list(valid_models.keys()))
 
         if video_file is not None and model_choice_vid != "select a model":
-            model_path = MODEL_PATHS.get(model_choice_vid)
+            # Display input video
+            st.subheader("Input Video")
+            input_video_bytes = video_file.read()
+            st.video(input_video_bytes, format=video_file.type)
+            logger.info("Input video displayed in Streamlit")
+
+            model_path = valid_models.get(model_choice_vid)
             model = get_model(model_path)
             if not model:
                 st.error("Model could not be loaded.")
@@ -629,11 +679,13 @@ def main():
             input_video_path = None
             output_video_path = None
             try:
+                # Save input video to temporary file
                 with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as tfile:
-                    tfile.write(video_file.read())
+                    tfile.write(input_video_bytes)
                     input_video_path = tfile.name
                 logger.info(f"Input video saved to: {input_video_path}")
 
+                # Open input video
                 cap = cv2.VideoCapture(input_video_path)
                 if not cap.isOpened():
                     st.error("Error: Could not open the input video file. Ensure the file is a valid video format (MP4, AVI, MOV).")
@@ -648,7 +700,7 @@ def main():
                 # Check for available codec
                 codec = get_available_codec()
                 if not codec:
-                    st.error("Error: No supported video codec found. Ensure OpenCV supports 'mp4v', 'avc1', or 'XVID'.")
+                    st.error("Error: No supported video codec found. Ensure OpenCV supports 'avc1', 'mp4v', or 'XVID' and FFmpeg is installed.")
                     logger.error("No supported video codec found.")
                     cap.release()
                     return
@@ -659,12 +711,13 @@ def main():
                 output_video_path = os.path.join(tempfile.gettempdir(), f"output_{datetime.now().strftime('%Y%m%d_%H%M%S')}.mp4")
                 out = cv2.VideoWriter(output_video_path, fourcc, fps, (frame_width, frame_height))
                 if not out.isOpened():
-                    st.error(f"Error: Could not initialize video writer with codec {codec}.")
+                    st.error(f"Error: Could not initialize video writer with codec {codec}. Ensure FFmpeg is installed and OpenCV is built with FFmpeg support.")
                     logger.error(f"Could not initialize video writer with codec {codec}.")
                     cap.release()
                     return
 
-                st.info(f"Processing video with {total_frames} frames...")
+                # Process video
+                st.subheader("Processing Video")
                 frame_count = 0
                 with st.spinner(f"Processing {total_frames} frames..."):
                     while True:
@@ -675,9 +728,11 @@ def main():
                         if results:
                             img_annotated = draw_boxes_on_image(Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)), results, class_map)
                             frame_out = cv2.cvtColor(np.array(img_annotated), cv2.COLOR_RGB2BGR)
+                            logger.info(f"Frame {frame_count}: Inference successful, writing annotated frame")
                             out.write(frame_out)
                         else:
-                            out.write(frame)  # Write original frame if inference fails
+                            logger.warning(f"Frame {frame_count}: Inference failed, writing original frame")
+                            out.write(frame)
                         frame_count += 1
                         if frame_count % 50 == 0:
                             st.text(f"Processed {frame_count}/{total_frames} frames")
@@ -687,13 +742,14 @@ def main():
                 out.release()
                 logger.info(f"Output video saved to: {output_video_path}")
 
-                # Display the video
+                # Display output video
+                st.subheader("Processed Output Video")
                 if os.path.exists(output_video_path):
                     with open(output_video_path, "rb") as video_file:
-                        video_bytes = video_file.read()
-                    st.video(video_bytes, format="video/mp4")
+                        output_video_bytes = video_file.read()
+                    st.video(output_video_bytes, format="video/mp4")
                     st.success("Video processing complete and displayed successfully!")
-                    logger.info("Video displayed successfully in Streamlit")
+                    logger.info("Processed video displayed successfully in Streamlit")
                 else:
                     st.error("Error: Output video file was not created.")
                     logger.error(f"Output video file not found: {output_video_path}")
