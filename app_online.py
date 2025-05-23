@@ -243,7 +243,6 @@ def draw_boxes_on_image(image, results, class_map):
         logger.error(f"Error drawing boxes: {str(e)}")
         st.error(f"Error drawing boxes: {str(e)}")
         return image
-
 def grad_cam_and_save(model_path, img_path, save_dir, use_multi_layer, file_prefix):
     """Generate and save Grad-CAM visualization."""
     try:
@@ -270,7 +269,7 @@ def grad_cam_and_save(model_path, img_path, save_dir, use_multi_layer, file_pref
         
         # Resize heatmap to match the image dimensions
         img_height, img_width = img.shape[:2]
-        heatmap = scale_cam_image(heatmap, target_shape=(img_width, img_height))
+        heatmap = scale_cam_image(heatmap, target_size=(img_width, img_height))
         
         # Normalize heatmap to [0, 1]
         heatmap = np.maximum(heatmap, 0)
