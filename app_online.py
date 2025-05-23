@@ -256,11 +256,21 @@ def grad_cam_and_save(model_path, img_path, save_dir, use_multi_layer, file_pref
         # Generate Grad-CAM heatmap
         heatmap = cam(img)
         
-        # Ensure heatmap is 2D
+        # Remove extra dimensions (e.g., leading 1)
         if len(heatmap.shape) == 3:
-            heatmap = np.mean(heatmap, axis=2)  # Convert to grayscale if RGB
-        elif len(heatmap.shape) > 2:
-            heatmap = heatmap.squeeze()  # Remove extra dimensions
+            heatmap = heatmap.squeeze(0)  # Remove leading dimension if present
+        
+        # Convert to grayscale if heatmap is still 3D (e.g., has RGB channels)
+        if len(heatmap.shape) == 3 and heatmap.shape[-1] == 3:
+            heatmap = np.mean(heatmap, axis=2)  # Convert to grayscale
+        
+        # Ensure heatmap is 2D at this point
+        if len(heatmap.shape) != 2:
+            raise ValueError(f"Heatmap shape {heatmap.shape} is not 2D after processing")
+        
+        # Resize heatmap to match the image dimensions
+        img_height, img_width = img.shape[:2]
+        heatmap = scale_cam_image(heatmap, target_shape=(img_width, img_height))
         
         # Normalize heatmap to [0, 1]
         heatmap = np.maximum(heatmap, 0)
