@@ -307,39 +307,36 @@ def find_camera():
         cap.release()
     return None
 
-def real_time_inference(model, device, video_source, frame_size):
-    """Perform real-time inference using webcam."""
+def real_time_inference(model, device, video_source=0):
+    """Perform real-time object detection using webcam."""
+    if "stop_inference" not in st.session_state:
+        st.session_state.stop_inference = False
+
+    if st.button("Stop Inference"):
+        st.session_state.stop_inference = True
+
+    cap = cv2.VideoCapture(video_source)
+    if not cap.isOpened():
+        st.error("Error opening video stream. Try a different video source index.")
+        return
+
+    placeholder = st.empty()
+    
     try:
-        # Try V4L2 backend first
-        cap = cv2.VideoCapture(video_source)
-        if not cap.isOpened():
-            # Fallback to GStreamer
-            cap = cv2.VideoCapture(f"v4l2src device=/dev/video{video_source} ! videoconvert ! appsink", cv2.CAP_GSTREAMER)
-            if not cap.isOpened():
-                st.error(f"Failed to open camera at index {video_source}. Ensure the camera is connected, permissions are set (add user to 'video' group), and drivers are installed.")
-                logger.error(f"Failed to open camera at index {video_source} with V4L2 and GStreamer")
-                return
-        cap.set(cv2.CAP_PROP_FRAME_WIDTH, frame_size)
-        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, frame_size)
-        stframe = st.empty()
-        stop_button = st.button("Stop Inference")
-        while cap.isOpened() and not stop_button:
-            start_time = time.time()
+        while not st.session_state.stop_inference:
             ret, frame = cap.read()
             if not ret:
-                st.error("Failed to read frame from camera.")
-                logger.error("Failed to read frame from camera.")
                 break
+            frame = cv2.resize(frame, (640, 480))  # Consider making size configurable
             results = run_inference(model, frame)
             if results:
                 img_annotated = draw_boxes_on_image(Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)), results, class_map)
-                stframe.image(img_annotated, channels="RGB", use_container_width=True)
-            elapsed = time.time() - start_time
-            time.sleep(max(0, 1/30 - elapsed))
+                frame = np.array(img_annotated)
+                frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+                placeholder.image(frame, caption="Real-time Object Detection", channels="BGR", use_container_width=True)
+            time.sleep(0.03)  # Adjust for smoother performance
+    finally:
         cap.release()
-    except Exception as e:
-        logger.error(f"Real-time inference error: {str(e)}")
-        st.error(f"Real-time inference error: {str(e)}")
 
 def get_available_codec():
     """Return an available video codec, prioritizing H.264."""
@@ -621,23 +618,16 @@ def main():
     elif selected == "Real-time Detection":
         st.subheader("Real-time Object Detection")
         st.write("Perform object detection using your webcam. Click 'Stop Inference' to end the session.")
-        model_choice_rt = st.selectbox("Select YOLO Model for Real-time Detection", ["select a model"] + list(valid_models.keys()))
+        model_choice_rt = st.selectbox("Select YOLO Model for Real-time Detection", ["select a model"] + list(MODEL_PATHS.keys()))
 
-        video_source = find_camera()
-        if video_source is None:
-            st.error("No camera found. Please connect a webcam and ensure it’s accessible. Run `ls /dev/video*` to check available devices and `sudo usermod -a -G video $USER` to ensure permissions.")
-            logger.error("No camera found during enumeration.")
-        else:
-            st.write(f"Using camera at index {video_source}")
-            frame_size = st.slider("Frame Width", min_value=320, max_value=1280, value=640, step=32)
-            if model_choice_rt != "select a model":
-                model_path = valid_models.get(model_choice_rt)
-                model = get_model(model_path)
-                if model:
-                    st.info("Starting webcam inference. Click 'Stop Inference' to stop.")
-                    real_time_inference(model, get_device(), video_source, frame_size)
-                else:
-                    st.error("Model could not be loaded.")
+        if model_choice_rt != "select a model":
+            model_path = MODEL_PATHS.get(model_choice_rt)
+            model = get_model(model_path)
+            if model:
+                st.info("Starting webcam inference. Click 'Stop Inference' to stop.")
+                real_time_inference(model, get_device())
+            else:
+                st.error("Model could not be loaded.")
 
     elif selected == "Upload Video":
         st.subheader("Upload a Video for Inference")
