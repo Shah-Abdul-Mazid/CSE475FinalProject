@@ -5,6 +5,7 @@ torch
 ultralytics
 pandas
 numpy
+asyncio
 opencv-python
 matplotlib
 opencv-python-headless
