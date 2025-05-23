@@ -636,13 +636,14 @@ def main():
 
     elif selected == "Upload Video":
         st.subheader("Upload a Video for Inference")
-        st.write("Upload an MP4, AVI, or MOV video to run object detection using the selected YOLO model. The input video will be shown first, followed by the processed video.")
+        st.write("Upload an MP4, AVI, or MOV video to run object detection using the selected YOLO model. The processed video will be available for download.")
         video_file = st.file_uploader("Upload Video", type=["mp4", "avi", "mov"])
         model_choice_vid = st.selectbox("Select YOLO Model for Video Inference", ["select a model"] + list(valid_models.keys()))
         
         # Additional options for video processing
         resize_factor = st.slider("Output Video Resize Factor", min_value=0.1, max_value=1.0, value=1.0, step=0.1, help="Reduce resolution to speed up processing (e.g., 0.5 for half size).")
         frame_skip = st.slider("Process Every Nth Frame", min_value=1, max_value=10, value=1, step=1, help="Process every Nth frame to speed up processing (1 = process all frames).")
+        output_subfolder = st.text_input("Output Subfolder Name (optional, defaults to timestamp)", "", help="Enter a subfolder name to save the processed video (e.g., 'my_videos'). Saved in output_videos/<subfolder>.")
 
         if video_file is not None and model_choice_vid != "select a model":
             # Display input video
@@ -685,17 +686,32 @@ def main():
                 frames_to_process = total_frames // frame_skip
                 logger.info(f"Input video properties: resolution={frame_width}x{frame_height}, fps={fps}, total_frames={total_frames}, frames_to_process={frames_to_process}")
 
-                # Check for H.264 codec
-                codec = "mp4v"  # Force H.264 for compatibility
-                fourcc = cv2.VideoWriter_fourcc(*codec)
-                logger.info(f"Using codec: {codec}")
+                # Create output folder
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                subfolder = output_subfolder.strip() or timestamp
+                output_dir = BASE_DIR / "output_videos" / subfolder
+                os.makedirs(output_dir, exist_ok=True)
+                output_video_path = str(output_dir / f"processed_video_{timestamp}.mp4")
+                st.info(f"Output video will be saved to: {output_video_path}")
+                logger.info(f"Output video will be saved to: {output_video_path}")
 
-                # Create output video file
-                output_video_path = os.path.join(tempfile.gettempdir(), f"output_{datetime.now().strftime('%Y%m%d_%H%M%S')}.mp4")
-                out = cv2.VideoWriter(output_video_path, fourcc, fps, (frame_width, frame_height))
-                if not out.isOpened():
-                    st.error(f"Error: Could not initialize video writer with H.264 codec. Ensure FFmpeg is installed (`sudo apt-get install ffmpeg` on Linux, or add FFmpeg to PATH on Windows) and OpenCV is built with FFmpeg support. Try a different codec like 'mp4v' if issues persist.")
-                    logger.error(f"Could not initialize video writer with codec {codec}.")
+                # Try codecs: mp4v first, then avc1
+                codecs = ["mp4v", "avc1"]
+                out = None
+                for codec in codecs:
+                    fourcc = cv2.VideoWriter_fourcc(*codec)
+                    logger.info(f"Attempting codec: {codec}")
+                    out = cv2.VideoWriter(output_video_path, fourcc, fps, (frame_width, frame_height))
+                    if out.isOpened():
+                        logger.info(f"Video writer initialized with codec: {codec}")
+                        break
+                    logger.warning(f"Failed to initialize video writer with codec: {codec}")
+                    out.release()
+                    out = None
+
+                if out is None:
+                    st.error("Error: Could not initialize video writer with any codec (mp4v, avc1). Ensure FFmpeg is installed (`sudo apt-get install ffmpeg` on Linux, or add FFmpeg to PATH on Windows) and OpenCV is built with FFmpeg support. Check OpenCV build info with `cv2.getBuildInformation()` and look for 'FFMPEG: YES'. Reinstall OpenCV if needed: `pip install opencv-python-headless`.")
+                    logger.error("Failed to initialize video writer with all codecs.")
                     cap.release()
                     return
 
@@ -742,29 +758,24 @@ def main():
                 # Verify output video
                 output_cap = cv2.VideoCapture(output_video_path)
                 if not output_cap.isOpened() or output_cap.get(cv2.CAP_PROP_FRAME_COUNT) == 0:
-                    st.error(f"Error: Output video is corrupt or empty. Check if FFmpeg is installed and supports H.264 encoding. Try playing the video with VLC to diagnose. Output path: {output_video_path}")
+                    st.error(f"Error: Output video is corrupt or empty. Check if FFmpeg is installed and supports the selected codec. Try playing the video with VLC after downloading. Output path: {output_video_path}")
                     logger.error(f"Output video is corrupt or empty: {output_video_path}")
                     output_cap.release()
                     return
                 output_cap.release()
 
-                # Display output video
-                st.subheader("Processed Output Video")
+                # Provide download option (no display)
+                st.subheader("Download Processed Video")
                 if os.path.exists(output_video_path):
                     with open(output_video_path, "rb") as video_file:
                         output_video_bytes = video_file.read()
-                    st.video(output_video_bytes, format="video/mp4")
-                    st.success("Video processing complete and displayed successfully!")
-                    logger.info("Processed video displayed successfully in Streamlit")
-
-                    # Provide download option
-                    st.subheader("Download Processed Video")
                     st.download_button(
-                        label="Download Output Video",
+                        label="Download Processed Video",
                         data=output_video_bytes,
-                        file_name=f"processed_video_{datetime.now().strftime('%Y%m%d_%H%M%S')}.mp4",
+                        file_name=f"processed_video_{timestamp}.mp4",
                         mime="video/mp4"
                     )
+                    st.success(f"Video processing complete! Saved to: {output_video_path}. Download the video and open it in a media player like VLC.")
                     logger.info("Download button provided for processed video")
                 else:
                     st.error(f"Error: Output video file was not created. Check logs for details. Output path: {output_video_path}")
@@ -774,22 +785,14 @@ def main():
                 st.error(f"Error processing video: {str(e)}. Ensure FFmpeg is installed, the video format is supported (convert using `ffmpeg -i input.mov -c:v libx264 output.mp4` if needed), and sufficient disk space is available.")
                 logger.error(f"Error processing video: {str(e)}")
             finally:
-                # Clean up temporary files after display
+                # Clean up temporary input file
                 if input_video_path and os.path.exists(input_video_path):
                     try:
                         os.unlink(input_video_path)
                         logger.info(f"Deleted temporary input file: {input_video_path}")
                     except Exception as e:
                         logger.warning(f"Failed to delete input file {input_video_path}: {str(e)}")
-                # Keep output video for debugging; remove manually if needed
-                if output_video_path and os.path.exists(output_video_path):
-                    logger.info(f"Output video retained for debugging: {output_video_path}")
-                    # Uncomment to enable cleanup
-                    # try:
-                    #     os.unlink(output_video_path)
-                    #     logger.info(f"Deleted temporary output file: {output_video_path}")
-                    # except Exception as e:
-                    #     logger.warning(f"Failed to delete output file {output_video_path}: {str(e)}")
+                # Output video is retained in output_videos folder; no cleanup needed
 
 if __name__ == "__main__":
     main()
