@@ -3,7 +3,7 @@ import streamlit as st
 from streamlit_option_menu import option_menu
 import os
 import random
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
 import torch
 from ultralytics import YOLO
 import pandas as pd
@@ -21,7 +21,6 @@ from datetime import datetime
 import logging
 from logging.handlers import RotatingFileHandler
 import plotly.express as px
-
 from yolo_cam.eigen_cam import EigenCAM
 from yolo_cam.utils.image import scale_cam_image, show_cam_on_image
 
@@ -83,11 +82,10 @@ def get_dataset_locations(root_path):
     locations = []
     for dirpath, dirnames, _ in os.walk(root_path):
         for dirname in dirnames:
-            # Use only the directory name (not full path) for display
             locations.append(dirname)
     return sorted(locations) if locations else ["No subdirectories found"]
 
-# Dataset configuration (removed 'locations' key)
+# Dataset configuration
 DATASET_CONFIG = {
     "root_dataset_path": root_dataset_path
 }
@@ -145,7 +143,7 @@ IMAGE_PATHS_MAP = {
         "Precision Curve": BASE_DIR / "yolo_training" / "yolov10_AdamW" / "P_curve.png",
         "Precision-Recall Curve": BASE_DIR / "yolo_training" / "yolov10_AdamW" / "PR_curve.png",
         "Recall Curve": BASE_DIR / "yolo_training" / "yolov10_AdamW" / "R_curve.png",
-        "Results": BASE_DIR / "yolo_training" / "yolov10_AdamW" / "results.png"
+        "Results": BASE_DIR / "yolo_training" / "yolo12_AdamW" / "results.png"
     },
     "YOLO10_with_Adamax": {
         "Normalized Confusion Matrix": BASE_DIR / "yolo_training" / "yolov10_Adamax" / "confusion_matrix_normalized.png",
@@ -224,54 +222,38 @@ def run_inference(model, image):
         st.error(f"Inference error: {str(e)}")
         return None
 
-from PIL import ImageFont  # Add this import at the top of your script if not already present
-
 def draw_boxes_on_image(image, results, class_map):
     """Draw dark bounding boxes with larger, clear confidence scores on the image."""
     try:
         if isinstance(image, np.ndarray):
             image = Image.fromarray(image)
         draw = ImageDraw.Draw(image)
-
-        # Load a custom font with increased size
         try:
-            font = ImageFont.truetype("arial.ttf", 20)  # Increase font size to 20 (adjust as needed)
+            font = ImageFont.truetype("arial.ttf", 20)
         except IOError:
-            # Fallback to default font if arial.ttf is not found
             font = ImageFont.load_default()
-            logger.warning("Arial font not found; falling back to default font. Text size increase may be limited.")
-
+            logger.warning("Arial font not found; falling back to default font.")
         for result in results:
             for box in result.boxes:
-                # Extract bounding box coordinates, class ID, and confidence
                 xyxy = box.xyxy[0].cpu().numpy()
                 cls_id = box.cls.cpu().numpy()[0]
                 conf = box.conf.cpu().numpy()[0]
                 label = f"{class_map.get(float(cls_id), 'Unknown')} {conf:.2f}"
-
-                # Draw a dark bounding box with thicker line
                 draw.rectangle(xyxy, outline="black", width=4)
-
-                # Calculate text position (above the bounding box)
                 text_x = xyxy[0]
-                text_y = xyxy[1] - 30 if xyxy[1] - 30 > 0 else xyxy[1] + 30  # Adjusted for larger text
-
-                # Calculate the size of the text for the background rectangle
+                text_y = xyxy[1] - 30 if xyxy[1] - 30 > 0 else xyxy[1] + 30
                 bbox = draw.textbbox((text_x, text_y), label, font=font)
                 text_width = bbox[2] - bbox[0]
                 text_height = bbox[3] - bbox[1]
-
-                # Draw a filled background rectangle for the text (e.g., semi-transparent black)
                 background_coords = [text_x, text_y, text_x + text_width, text_y + text_height]
-                draw.rectangle(background_coords, fill=(0, 0, 0, 180))  # Black with some transparency
-
-                # Draw the label text in a contrasting color (e.g., white) with the custom font
+                draw.rectangle(background_coords, fill=(0, 0, 0, 180))
                 draw.text((text_x, text_y), label, fill="white", font=font)
         return image
     except Exception as e:
         logger.error(f"Error drawing boxes: {str(e)}")
         st.error(f"Error drawing boxes: {str(e)}")
         return image
+
 def grad_cam_and_save(model_path, img_path, save_dir, target_layers_indices=[-2, -3, -4], use_multi_layer=True, file_prefix=""):
     """Generate and save Grad-CAM visualization for an image."""
     try:
@@ -279,32 +261,27 @@ def grad_cam_and_save(model_path, img_path, save_dir, target_layers_indices=[-2,
             raise FileNotFoundError(f"Image not found: {img_path}")
         if not os.path.exists(model_path):
             raise FileNotFoundError(f"Model not found: {model_path}")
-
         model = YOLO(model_path)
         model.eval()
-
         img = cv2.imread(img_path)
         img = cv2.resize(img, (640, 640))
         rgb_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         img_norm = np.float32(rgb_img) / 255.0
-
         if use_multi_layer:
             target_layers = [model.model.model[i] for i in target_layers_indices]
         else:
             target_layers = [model.model.model[target_layers_indices[0]]]
-
         cam = EigenCAM(model, target_layers, task='od')
         grayscale_cam = cam(rgb_img)[0, :, :]
         cam_image = show_cam_on_image(img_norm, grayscale_cam, use_rgb=True)
-
         os.makedirs(save_dir, exist_ok=True)
         save_path = os.path.join(save_dir, f'{file_prefix}_gradcam.jpg')
         cam_bgr = cv2.cvtColor(cam_image, cv2.COLOR_RGB2BGR)
         cv2.imwrite(save_path, cam_bgr)
-        print(f"Saved: {save_path}")
+        logger.info(f"Saved Grad-CAM: {save_path}")
         return save_path
     except Exception as e:
-        print(f"Error processing {img_path} with model {model_path}: {e}")
+        logger.error(f"Error processing Grad-CAM for {img_path} with model {model_path}: {str(e)}")
         return None
 
 def get_device():
@@ -339,7 +316,7 @@ def real_time_inference(model, device, video_source, frame_size):
                 img_annotated = draw_boxes_on_image(Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)), results, class_map)
                 stframe.image(img_annotated, channels="RGB", use_container_width=True)
             elapsed = time.time() - start_time
-            time.sleep(max(0, 1/30 - elapsed))  # Maintain ~30 FPS
+            time.sleep(max(0, 1/30 - elapsed))
         cap.release()
     except Exception as e:
         logger.error(f"Real-time inference error: {str(e)}")
@@ -382,7 +359,6 @@ def main():
 
     if selected == "Home":
         st.title("Welcome to the Bangladeshi Traffic Flow Object Detection Project 🚗")
-        # Get dynamic locations
         locations = get_dataset_locations(DATASET_CONFIG["root_dataset_path"])
         locations_str = ", ".join(locations) if locations else "Various locations"
         st.markdown(f"""
@@ -573,23 +549,19 @@ def main():
             image_paths = IMAGE_PATHS_MAP.get(model_key, {})
             csv_path = csv_paths.get(model_key)
 
-            # Try to read from CSV if data_yaml is not found
             if not data_yaml.exists() and csv_path and csv_path.exists():
                 st.warning(f"data.yaml not found at {data_yaml}. Reading metrics from {csv_path} instead.")
                 logger.warning(f"data.yaml not found at {data_yaml}. Reading metrics from {csv_path} instead.")
                 try:
                     df_metrics = pd.read_csv(csv_path)
-                    # Rename columns to match expected format
                     df_metrics = df_metrics.rename(columns={'Class Name': 'Class', 'AP50': 'mAP@0.5', 'AP': 'mAP@0.5:0.95'})
                 except Exception as e:
                     st.error(f"Failed to read metrics from {csv_path}: {str(e)}")
                     logger.error(f"Failed to read metrics from {csv_path}: {str(e)}")
                     continue
             elif csv_path and csv_path.exists():
-                # Prefer CSV even if data_yaml exists for consistency with precomputed metrics
                 try:
                     df_metrics = pd.read_csv(csv_path)
-                    # Rename columns to match expected format
                     df_metrics = df_metrics.rename(columns={'Class Name': 'Class', 'AP50': 'mAP@0.5', 'AP': 'mAP@0.5:0.95'})
                 except Exception as e:
                     st.error(f"Failed to read metrics from {csv_path}: {str(e)}")
@@ -602,7 +574,6 @@ def main():
 
             if df_metrics is not None:
                 st.markdown("### Class-wise and Overall Metrics")
-                # Convert metrics to numeric and handle percentages
                 for col in metrics_cols:
                     if col in df_metrics.columns:
                         df_metrics[col] = pd.to_numeric(df_metrics[col], errors='coerce')
@@ -612,7 +583,6 @@ def main():
                     use_container_width=True
                 )
 
-                # Plot mAP@0.5 comparison (excluding the 'Overall' row)
                 df_plot = df_metrics[df_metrics['Class'] != 'Overall Metrics']
                 if 'mAP@0.5' in df_plot.columns:
                     st.markdown("### mAP@0.5 Comparison Across Classes")
@@ -659,25 +629,44 @@ def main():
             input_video_path = None
             output_video_path = None
             try:
+                # Save input video to a temporary file
                 with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as tfile:
                     tfile.write(video_file.read())
                     input_video_path = tfile.name
+                logger.info(f"Input video saved to: {input_video_path}")
 
-                st.info("Processing video...")
+                # Validate input video
                 cap = cv2.VideoCapture(input_video_path)
                 if not cap.isOpened():
-                    st.error("Error opening video file.")
+                    st.error("Error: Could not open the input video file. Ensure the file is a valid video format (MP4, AVI, MOV).")
+                    logger.error(f"Could not open video file: {input_video_path}")
                     return
 
                 frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
                 frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-                fps = int(cap.get(cv2.CAP_PROP_FPS))
+                fps = int(cap.get(cv2.CAP_PROP_FPS)) or 30  # Default to 30 FPS if not available
                 total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
-                output_video_path = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4').name
-                fourcc = cv2.VideoWriter_fourcc(*'H264')
-                out = cv2.VideoWriter(output_video_path, fourcc, fps, (frame_width, frame_height))
+                # Check for available codec
+                codec = get_available_codec()
+                if not codec:
+                    st.error("Error: No supported video codec found. Ensure OpenCV supports 'mp4v', 'avc1', or 'XVID'.")
+                    logger.error("No supported video codec found.")
+                    cap.release()
+                    return
+                fourcc = cv2.VideoWriter_fourcc(*codec)
+                logger.info(f"Using codec: {codec}")
 
+                # Create output video file
+                output_video_path = os.path.join(tempfile.gettempdir(), f"output_{datetime.now().strftime('%Y%m%d_%H%M%S')}.mp4")
+                out = cv2.VideoWriter(output_video_path, fourcc, fps, (frame_width, frame_height))
+                if not out.isOpened():
+                    st.error(f"Error: Could not initialize video writer with codec {codec}.")
+                    logger.error(f"Could not initialize video writer with codec {codec}.")
+                    cap.release()
+                    return
+
+                st.info(f"Processing video with {total_frames} frames...")
                 frame_count = 0
                 with st.spinner(f"Processing {total_frames} frames..."):
                     while True:
@@ -689,23 +678,47 @@ def main():
                             img_annotated = draw_boxes_on_image(Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)), results, class_map)
                             frame_out = cv2.cvtColor(np.array(img_annotated), cv2.COLOR_RGB2BGR)
                             out.write(frame_out)
+                        else:
+                            out.write(frame)  # Write original frame if inference fails
                         frame_count += 1
                         if frame_count % 50 == 0:
                             st.text(f"Processed {frame_count}/{total_frames} frames")
+                            logger.info(f"Processed {frame_count}/{total_frames} frames")
 
                 cap.release()
                 out.release()
+                logger.info(f"Output video saved to: {output_video_path}")
 
-                st.success("Video processing complete!")
-                st.video(output_video_path)
+                # Display the video
+                if os.path.exists(output_video_path):
+                    with open(output_video_path, "rb") as video_file:
+                        video_bytes = video_file.read()
+                    st.video(video_bytes, format="video/mp4")
+                    st.success("Video processing complete and displayed successfully!")
+                    logger.info("Video displayed successfully in Streamlit")
+                else:
+                    st.error("Error: Output video file was not created.")
+                    logger.error(f"Output video file not found: {output_video_path}")
 
             except Exception as e:
                 st.error(f"Error processing video: {str(e)}")
+                logger.error(f"Error processing video: {str(e)}")
             finally:
+                # Clean up temporary files
                 if input_video_path and os.path.exists(input_video_path):
-                    os.unlink(input_video_path)
+                    try:
+                        os.unlink(input_video_path)
+                        logger.info(f"Deleted temporary input file: {input_video_path}")
+                    except Exception as e:
+                        logger.warning(f"Failed to delete input file {input_video_path}: {str(e)}")
                 if output_video_path and os.path.exists(output_video_path):
-                    os.unlink(output_video_path)
+                    try:
+                        os.unlink(output_video_path)
+                        logger.info(f"Deleted temporary output file: {output_video_path}")
+                    except Exception as e:
+                        logger.warning(f"Failed to delete output file {output_video_path}: {str(e)}")
+        else:
+            st.warning("Please upload a video and select a model.")
 
 if __name__ == "__main__":
     main()
