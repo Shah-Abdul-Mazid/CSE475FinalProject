@@ -565,7 +565,7 @@ def main():
         data_yaml = BASE_DIR / "Bd_Traffic_Dataset_v6" / "Bangladeshi Traffic Flow Dataset" / "Bangladeshi Traffic Flow Dataset" / "data.yaml"
 
         for idx, (model_key, model_path) in enumerate(valid_models.items()):
-            model_name = model_key.replace("YOLO10_with_", "YOLOv10 ").replace("YOLO12_with_", "YOLOv12 ").replace("_", " ")
+            model_name = model_key.replace("YOLOv10_with_", "YOLO10 ").replace("YOLO12_with_", "YOLOv12 ").replace("_", " ")
             st.subheader(f"{model_name} Validation Results")
             image_paths = IMAGE_PATHS_MAP.get(model_key, {})
             csv_path = csv_paths.get(model_key)
