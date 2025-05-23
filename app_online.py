@@ -645,74 +645,67 @@ def main():
 
     elif selected == "Upload Video":
         st.subheader("Upload a Video for Inference")
-        st.write("Upload an MP4, AVI, MOV, or WEBM video for object detection.")
-        video_file = st.file_uploader("Upload Video", type=["mp4", "avi", "mov", "webm"])
-        model_choice_vid = st.selectbox("Select YOLO Model for Video Inference", ["select a model"] + list(valid_models.keys()))
+        st.write("Upload an MP4, AVI, or MOV video to run object detection using the selected YOLO model.")
+        video_file = st.file_uploader("Upload Video", type=["mp4", "avi", "mov"])
+        model_choice_vid = st.selectbox("Select YOLO Model for Video Inference", ["select a model"] + list(MODEL_PATHS.keys()))
 
         if video_file is not None and model_choice_vid != "select a model":
-            model_path = valid_models.get(model_choice_vid)
+            model_path = MODEL_PATHS.get(model_choice_vid)
             model = get_model(model_path)
             if not model:
                 st.error("Model could not be loaded.")
                 return
 
-            with tempfile.TemporaryDirectory() as tmp_dir:
-                input_video_path = os.path.join(tmp_dir, "input_video.mp4")
-                output_video_path = os.path.join(tmp_dir, "output_video.mp4")
-                try:
-                    with open(input_video_path, "wb") as f:
-                        f.write(video_file.read())
+            input_video_path = None
+            output_video_path = None
+            try:
+                with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as tfile:
+                    tfile.write(video_file.read())
+                    input_video_path = tfile.name
 
-                    st.info("Processing video...")
-                    cap = cv2.VideoCapture(input_video_path)
-                    if not cap.isOpened():
-                        st.error("Error opening video file.")
-                        logger.error(f"Failed to open video file: {input_video_path}")
-                        return
+                st.info("Processing video...")
+                cap = cv2.VideoCapture(input_video_path)
+                if not cap.isOpened():
+                    st.error("Error opening video file.")
+                    return
 
-                    frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-                    frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-                    fps = int(cap.get(cv2.CAP_PROP_FPS))
-                    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+                frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                fps = int(cap.get(cv2.CAP_PROP_FPS))
+                total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
-                    codec = get_available_codec()
-                    if not codec:
-                        st.error("No supported video codecs found.")
-                        logger.error("No supported video codecs found")
-                        return
-                    fourcc = cv2.VideoWriter_fourcc(*codec)
-                    out = cv2.VideoWriter(output_video_path, fourcc, fps, (frame_width, frame_height))
+                output_video_path = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4').name
+                fourcc = cv2.VideoWriter_fourcc(*'H264')
+                out = cv2.VideoWriter(output_video_path, fourcc, fps, (frame_width, frame_height))
 
-                    frame_count = 0
-                    progress_bar = st.progress(0)
-                    start_time = time.time()
-                    with st.spinner(f"Processing {total_frames} frames..."):
-                        while True:
-                            ret, frame = cap.read()
-                            if not ret:
-                                break
-                            results = run_inference(model, frame)
-                            if results:
-                                img_annotated = draw_boxes_on_image(Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)), results, class_map)
-                                frame_out = cv2.cvtColor(np.array(img_annotated), cv2.COLOR_RGB2BGR)
-                                out.write(frame_out)
-                            frame_count += 1
-                            progress_bar.progress(min(frame_count / total_frames, 1.0))
-                            if frame_count % 50 == 0:
-                                elapsed = time.time() - start_time
-                                eta = (total_frames - frame_count) * (elapsed / frame_count) if frame_count > 0 else 0
-                                st.text(f"Processed {frame_count}/{total_frames} frames (ETA: {int(eta)}s)")
-                                logger.info(f"Processed {frame_count}/{total_frames} frames")
+                frame_count = 0
+                with st.spinner(f"Processing {total_frames} frames..."):
+                    while True:
+                        ret, frame = cap.read()
+                        if not ret:
+                            break
+                        results = run_inference(model, frame)
+                        if results:
+                            img_annotated = draw_boxes_on_image(Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)), results, class_map)
+                            frame_out = cv2.cvtColor(np.array(img_annotated), cv2.COLOR_RGB2BGR)
+                            out.write(frame_out)
+                        frame_count += 1
+                        if frame_count % 50 == 0:
+                            st.text(f"Processed {frame_count}/{total_frames} frames")
 
-                    cap.release()
-                    out.release()
-                    st.success("Video processing complete!")
-                    st.video(output_video_path)
-                    logger.info("Video processing completed successfully")
+                cap.release()
+                out.release()
 
-                except Exception as e:
-                    st.error(f"Error processing video: {str(e)}")
-                    logger.error(f"Error processing video: {str(e)}")
+                st.success("Video processing complete!")
+                st.video(output_video_path)
+
+            except Exception as e:
+                st.error(f"Error processing video: {str(e)}")
+            finally:
+                if input_video_path and os.path.exists(input_video_path):
+                    os.unlink(input_video_path)
+                if output_video_path and os.path.exists(output_video_path):
+                    os.unlink(output_video_path)
 
 if __name__ == "__main__":
     main()
