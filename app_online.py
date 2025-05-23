@@ -243,52 +243,39 @@ def draw_boxes_on_image(image, results, class_map):
         logger.error(f"Error drawing boxes: {str(e)}")
         st.error(f"Error drawing boxes: {str(e)}")
         return image
-def grad_cam_and_save(model_path, img_path, save_dir, use_multi_layer, file_prefix):
-    """Generate and save Grad-CAM visualization."""
+def grad_cam_and_save(model_path, img_path, save_dir, target_layers_indices=[-2, -3, -4], use_multi_layer=True, file_prefix=""):
+    """Generate and save Grad-CAM visualization for an image."""
     try:
+        if not os.path.exists(img_path):
+            raise FileNotFoundError(f"Image not found: {img_path}")
+        if not os.path.exists(model_path):
+            raise FileNotFoundError(f"Model not found: {model_path}")
+
         model = YOLO(model_path)
-        cam = EigenCAM(model, target_layers=[model.model.model[-2]])  # Adjust layer if needed
+        model.eval()
+
         img = cv2.imread(img_path)
-        if img is None:
-            raise ValueError(f"Failed to load image: {img_path}")
-        
-        # Generate Grad-CAM heatmap
-        heatmap = cam(img)
-        
-        # Remove extra dimensions (e.g., leading 1)
-        if len(heatmap.shape) == 3:
-            heatmap = heatmap.squeeze(0)  # Remove leading dimension if present
-        
-        # Convert to grayscale if heatmap is still 3D (e.g., has RGB channels)
-        if len(heatmap.shape) == 3 and heatmap.shape[-1] == 3:
-            heatmap = np.mean(heatmap, axis=2)  # Convert to grayscale
-        
-        # Ensure heatmap is 2D at this point
-        if len(heatmap.shape) != 2:
-            raise ValueError(f"Heatmap shape {heatmap.shape} is not 2D after processing")
-        
-        # Resize heatmap to match the image dimensions
-        img_height, img_width = img.shape[:2]
-        heatmap = scale_cam_image(heatmap, target_size=(img_width, img_height))
-        
-        # Normalize heatmap to [0, 1]
-        heatmap = np.maximum(heatmap, 0)
-        heatmap = heatmap / (np.max(heatmap) + 1e-10)  # Avoid division by zero
-        
-        # Apply colormap and overlay
-        heatmap_colored = cv2.applyColorMap(np.uint8(255 * heatmap), cv2.COLORMAP_JET)
-        heatmap_colored = np.float32(heatmap_colored) / 255
-        cam_img = heatmap_colored + np.float32(img / 255.0)
-        cam_img = cam_img / np.max(cam_img)
-        cam_img = np.uint8(255 * cam_img)
-        
-        # Save output
-        output_path = os.path.join(save_dir, f"{file_prefix}_gradcam.jpg")
-        cv2.imwrite(output_path, cam_img)
-        return output_path
+        img = cv2.resize(img, (640, 640))
+        rgb_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        img_norm = np.float32(rgb_img) / 255.0
+
+        if use_multi_layer:
+            target_layers = [model.model.model[i] for i in target_layers_indices]
+        else:
+            target_layers = [model.model.model[target_layers_indices[0]]]
+
+        cam = EigenCAM(model, target_layers, task='od')
+        grayscale_cam = cam(rgb_img)[0, :, :]
+        cam_image = show_cam_on_image(img_norm, grayscale_cam, use_rgb=True)
+
+        os.makedirs(save_dir, exist_ok=True)
+        save_path = os.path.join(save_dir, f'{file_prefix}_gradcam.jpg')
+        cam_bgr = cv2.cvtColor(cam_image, cv2.COLOR_RGB2BGR)
+        cv2.imwrite(save_path, cam_bgr)
+        print(f"Saved: {save_path}")
+        return save_path
     except Exception as e:
-        logger.error(f"Grad-CAM error: {str(e)}")
-        st.error(f"Grad-CAM error: {str(e)}")
+        print(f"Error processing {img_path} with model {model_path}: {e}")
         return None
 
 def get_device():
