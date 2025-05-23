@@ -24,18 +24,6 @@ import plotly.express as px
 from yolo_cam.eigen_cam import EigenCAM
 from yolo_cam.utils.image import scale_cam_image, show_cam_on_image
 
-# Patch Streamlit's LocalSourcesWatcher to avoid torch.classes error
-import lsw
-
-original_extract_paths = lsw.extract_paths
-
-def patched_extract_paths(module):
-    if module.__name__ == "torch.classes":
-        return []
-    return original_extract_paths(module)
-
-lsw.extract_paths = patched_extract_paths
-
 # Ensure asyncio event loop for Python 3.13 compatibility
 if not asyncio.get_event_loop().is_running():
     loop = asyncio.new_event_loop()
