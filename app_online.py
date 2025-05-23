@@ -692,7 +692,7 @@ def main():
                 logger.info(f"Input video properties: resolution={frame_width}x{frame_height}, fps={fps}, total_frames={total_frames}, frames_to_process={frames_to_process}")
 
                 # Check for H.264 codec
-                codec = "avc1"  # Force H.264 for compatibility
+                codec = "mp4v"  # Force H.264 for compatibility
                 fourcc = cv2.VideoWriter_fourcc(*codec)
                 logger.info(f"Using codec: {codec}")
 
