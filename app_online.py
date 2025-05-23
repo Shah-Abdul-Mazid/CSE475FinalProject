@@ -286,30 +286,6 @@ def get_device():
     """Return the appropriate device for inference."""
     return torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-@st.cache_data
-def validate_best_model(model_path, device, data_yaml, project_dir, name):
-    """Validate the model and return metrics as a DataFrame."""
-    try:
-        model = YOLO(model_path)
-        metrics = model.val(data=data_yaml, device=device, project=project_dir, name=name)
-        results_dict = metrics.results_dict
-        df_metrics = pd.DataFrame({
-            "Class": list(class_map.values()),
-            "Precision": [results_dict.get(f"metrics/precision({cls})", 0) for cls in class_map.values()],
-            "Recall": [results_dict.get(f"metrics/recall({cls})", 0) for cls in class_map.values()],
-            "F1-Score": [2 * (p * r) / (p + r + 1e-16) for p, r in zip(
-                [results_dict.get(f"metrics/precision({cls})", 0) for cls in class_map.values()],
-                [results_dict.get(f"metrics/recall({cls})", 0) for cls in class_map.values()]
-            )],
-            "mAP@0.5": [results_dict.get(f"metrics/mAP50({cls})", 0) for cls in class_map.values()],
-            "mAP@0.5:0.95": [results_dict.get(f"metrics/mAP50:95({cls})", 0) for cls in class_map.values()]
-        })
-        return df_metrics
-    except Exception as e:
-        logger.error(f"Validation error for {model_path}: {str(e)}")
-        st.error(f"Validation error: {str(e)}")
-        return None
-
 def display_images_grid(title, image_paths):
     """Display images in a grid."""
     st.subheader(title)
@@ -399,6 +375,7 @@ def main():
         - **Locations**: {locations_str}
         - **Vehicle Classes**: Cars, buses, trucks, motorcycles, rickshaws, etc.
         - **Challenges**: Overcrowded scenes, occlusions, low visibility.
+        - **Total Images**: 23,678
 
         ## Models
         - **YOLOv10**: Fast, lightweight, suitable for real-time detection.
@@ -451,7 +428,7 @@ def main():
         st.subheader("Dataset Preview")
         st.write("Preview random images from the Bangladeshi Traffic Flow Dataset.")
         try:
-            num_images = st.number_input("Number of images to preview:", min_value=1, max_value=100, value=5, step=1)
+            num_images = st.number_input("Number of images to preview:", min_value=1, max_value=500, value=5, step=1)
             images_per_row = st.number_input("Images per row:", min_value=1, max_value=10, value=5, step=1)
             logger.info(f"num_images: {num_images}, images_per_row: {images_per_row}")
 
@@ -562,41 +539,61 @@ def main():
     elif selected == "Results":
         st.subheader("Evaluation Results")
         st.write("View class-wise and overall metrics for each YOLO model, along with evaluation plots.")
-        metrics_cols = ['Precision', 'Recall', 'F1-Score', 'mAP@0.5', 'mAP@0.5:0.95']
+        metrics_cols = ['Precision', 'Recall', 'F1-Score', 'AP50', 'AP']
         data_yaml = BASE_DIR / "Bd_Traffic_Dataset_v6" / "Bangladeshi Traffic Flow Dataset" / "Bangladeshi Traffic Flow Dataset" / "data.yaml"
-        if not data_yaml.exists():
-            st.error(f"Data YAML file not found: {data_yaml}")
-            logger.error(f"Data YAML file not found: {data_yaml}")
-            st.stop()
-        device = get_device()
 
         for idx, (model_key, model_path) in enumerate(valid_models.items()):
             model_name = model_key.replace("YOLO10_with_", "YOLOv10 ").replace("YOLO12_with_", "YOLOv12 ").replace("_", " ")
             st.subheader(f"{model_name} Validation Results")
             image_paths = IMAGE_PATHS_MAP.get(model_key, {})
-            name = model_key.lower().replace("yolo10_with_", "yolov10_").replace("yolo12_with_", "yolov12_")
-            with st.spinner(f"Validating {model_name} model ({idx + 1}/{len(valid_models)})..."):
-                df_metrics = validate_best_model(
-                    model_path=model_path,
-                    device=device,
-                    data_yaml=data_yaml,
-                    project_dir="yolo_training",
-                    name=name
-                )
+            csv_path = csv_paths.get(model_key)
+
+            # Try to read from CSV if data_yaml is not found
+            if not data_yaml.exists() and csv_path and csv_path.exists():
+                st.warning(f"data.yaml not found at {data_yaml}. Reading metrics from {csv_path} instead.")
+                logger.warning(f"data.yaml not found at {data_yaml}. Reading metrics from {csv_path} instead.")
+                try:
+                    df_metrics = pd.read_csv(csv_path)
+                    # Rename columns to match expected format
+                    df_metrics = df_metrics.rename(columns={'Class Name': 'Class', 'AP50': 'mAP@0.5', 'AP': 'mAP@0.5:0.95'})
+                except Exception as e:
+                    st.error(f"Failed to read metrics from {csv_path}: {str(e)}")
+                    logger.error(f"Failed to read metrics from {csv_path}: {str(e)}")
+                    continue
+            elif csv_path and csv_path.exists():
+                # Prefer CSV even if data_yaml exists for consistency with precomputed metrics
+                try:
+                    df_metrics = pd.read_csv(csv_path)
+                    # Rename columns to match expected format
+                    df_metrics = df_metrics.rename(columns={'Class Name': 'Class', 'AP50': 'mAP@0.5', 'AP': 'mAP@0.5:0.95'})
+                except Exception as e:
+                    st.error(f"Failed to read metrics from {csv_path}: {str(e)}")
+                    logger.error(f"Failed to read metrics from {csv_path}: {str(e)}")
+                    continue
+            else:
+                st.warning(f"No metrics available for {model_name}. Ensure {csv_path} exists.")
+                logger.warning(f"No metrics available for {model_name}. Ensure {csv_path} exists.")
+                continue
+
             if df_metrics is not None:
                 st.markdown("### Class-wise and Overall Metrics")
+                # Convert metrics to numeric and handle percentages
                 for col in metrics_cols:
-                    df_metrics[col] = pd.to_numeric(df_metrics[col], errors='coerce')
-                format_dict = {col: "{:.2f}%" for col in metrics_cols if pd.api.types.is_numeric_dtype(df_metrics[col])}
+                    if col in df_metrics.columns:
+                        df_metrics[col] = pd.to_numeric(df_metrics[col], errors='coerce')
+                format_dict = {col: "{:.2f}%" for col in metrics_cols if col in df_metrics.columns and pd.api.types.is_numeric_dtype(df_metrics[col])}
                 st.dataframe(
                     df_metrics.style.format(format_dict),
                     use_container_width=True
                 )
 
-                st.markdown("### mAP@0.5 Comparison Across Classes")
-                fig = px.bar(df_metrics, x="Class", y="mAP@0.5", title=f"{model_name} mAP@0.5 Comparison",
-                             color="Class", color_discrete_sequence=px.colors.qualitative.Plotly)
-                st.plotly_chart(fig, use_container_width=True)
+                # Plot mAP@0.5 comparison (excluding the 'Overall' row)
+                df_plot = df_metrics[df_metrics['Class'] != 'Overall Metrics']
+                if 'mAP@0.5' in df_plot.columns:
+                    st.markdown("### mAP@0.5 Comparison Across Classes")
+                    fig = px.bar(df_plot, x="Class", y="mAP@0.5", title=f"{model_name} mAP@0.5 Comparison",
+                                 color="Class", color_discrete_sequence=px.colors.qualitative.Plotly)
+                    st.plotly_chart(fig, use_container_width=True)
 
             st.subheader(f"{model_name} Confusion Matrix and Curves")
             if image_paths:
