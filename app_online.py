@@ -24,6 +24,11 @@ import plotly.express as px
 from yolo_cam.eigen_cam import EigenCAM
 from yolo_cam.utils.image import scale_cam_image, show_cam_on_image
 
+# Ensure an event loop is available
+if not asyncio.get_event_loop().is_running():
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+
 # Configure logging with rotating file handler
 handler = RotatingFileHandler("app.log", maxBytes=10*1024*1024, backupCount=5)
 logging.basicConfig(
