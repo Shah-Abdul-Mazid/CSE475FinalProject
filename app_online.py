@@ -307,7 +307,7 @@ def find_camera():
         cap.release()
     return None
 
-def real_time_inference(model, device, video_source=1):
+def real_time_inference(model, device, video_source=0):
     """Perform real-time object detection using webcam."""
     if "stop_inference" not in st.session_state:
         st.session_state.stop_inference = False
