@@ -800,18 +800,74 @@
 #     main()
 
 import streamlit as st
+from streamlit_webrtc import webrtc_streamer, WebRtcMode, RTCConfiguration
 import cv2
 import numpy as np
+import logging
+
+# Setup logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logger = logging.getLogger(__name__)
 
 def stream_webcam():
-    cap = cv2.VideoCapture(0) # 0 for the default webcam
-    while cap.isOpened():
-        ret, frame = cap.read()
-        if not ret:
-            break
-        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        st.image(frame)
-    cap.release()
+    """Stream webcam feed using streamlit-webrtc."""
+    try:
+        # Initialize session state for controlling the stream
+        if "streaming" not in st.session_state:
+            st.session_state.streaming = False
 
-# Example usage:
-stream_webcam()
+        # Start/Stop toggle button
+        if st.button("Stop Webcam" if st.session_state.streaming else "Start Webcam"):
+            st.session_state.streaming = not st.session_state.streaming
+            st.rerun()
+
+        if st.session_state.streaming:
+            def process_frame(frame):
+                try:
+                    # Convert frame to RGB for display
+                    img = frame.to_ndarray(format="bgr24")
+                    if img is None or img.size == 0:
+                        logger.warning("Empty frame received")
+                        return None
+                    img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+                    return img_rgb
+                except Exception as e:
+                    logger.error(f"Error processing frame: {str(e)}")
+                    return None
+
+            # Start WebRTC streamer
+            webrtc_streamer(
+                key="webcam-stream",
+                mode=WebRtcMode.SENDRECV,
+                video_frame_callback=process_frame,
+                async_processing=True,
+                media_stream_constraints={"video": True, "audio": False},
+                rtc_configuration=RTCConfiguration({"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}),
+            )
+        else:
+            st.info("Webcam stream stopped. Click 'Start Webcam' to begin.")
+            logger.info("Webcam stream stopped by user.")
+
+    except Exception as e:
+        st.error(f"Error during webcam streaming: {str(e)}")
+        logger.error(f"Error during webcam streaming: {str(e)}")
+
+def main():
+    """Main function to run the Streamlit app."""
+    st.set_page_config(page_title="Webcam Stream", layout="centered")
+    st.title("Webcam Stream 📹")
+    st.write("Stream your webcam feed in real-time. Click the button to start or stop the stream.")
+    
+    # Check for webcam availability
+    cap = cv2.VideoCapture(0)
+    if not cap.isOpened():
+        st.error("No webcam detected. Please connect a webcam and refresh the page.")
+        logger.error("No webcam detected")
+        cap.release()
+        return
+    cap.release()
+    
+    stream_webcam()
+
+if __name__ == "__main__":
+    main()
