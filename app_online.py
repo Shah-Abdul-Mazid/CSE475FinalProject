@@ -931,7 +931,7 @@ def main():
     #                     logger.info(f"Deleted temporary input file: {input_video_path}")
     #                 except Exception as e:
     #                     logger.warning(f"Failed to delete input file {input_video_path}: {str(e)}")
-if selected == "Real-time Detection":
+    elif selected == "Real-time Detection":
         st.subheader("Real-time Object Detection")
         st.write("Perform object detection using your webcam (via WebRTC) or an uploaded video. Click 'Stop Inference' to end the session.")
         model_choice_rt = st.selectbox("Select YOLO Model for Real-time Detection", ["select a model"] + list(MODEL_PATHS.keys()))
