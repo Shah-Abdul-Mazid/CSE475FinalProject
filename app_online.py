@@ -297,64 +297,7 @@ def display_images_grid(title, image_paths):
         else:
             st.warning(f"Image not found: {path}")
             logger.warning(f"Image not found: {path}")
-
-# def find_camera():
-#     """Find an available camera index."""
-#     for index in range(5):  # Try indices 0 to 4
-#         cap = cv2.VideoCapture(index)
-#         if cap.isOpened():
-#             cap.release()
-#             return index
-#         cap.release()
-#     return None
-
-# def real_time_inference(model, device, video_source=0):
-#     """Perform real-time object detection using webcam."""
-#     if "stop_inference" not in st.session_state:
-#         st.session_state.stop_inference = False
-
-#     if st.button("Stop Inference"):
-#         st.session_state.stop_inference = True
-
-#     cap = cv2.VideoCapture(video_source)
-#     if not cap.isOpened():
-#         st.error("Error opening video stream. Try a different video source index.")
-#         return
-
-#     placeholder = st.empty()
-    
-#     try:
-#         while not st.session_state.stop_inference:
-#             ret, frame = cap.read()
-#             if not ret:
-#                 break
-#             frame = cv2.resize(frame, (640, 480)) 
-#             results = run_inference(model, frame)
-#             if results:
-#                 img_annotated = draw_boxes_on_image(Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)), results, class_map)
-#                 frame = np.array(img_annotated)
-#                 frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
-#                 placeholder.image(frame, caption="Real-time Object Detection", channels="BGR", use_container_width=True)
-#             time.sleep(0.03) 
-#     finally:
-#         cap.release()
-
-# def get_available_codec():
-#     """Return an available video codec, prioritizing H.264."""
-#     codecs = ["avc1", "mp4v", "XVID"]
-#     for codec in codecs:
-#         try:
-#             fourcc = cv2.VideoWriter_fourcc(*codec)
-#             temp_out = cv2.VideoWriter("test.mp4", fourcc, 30, (640, 480))
-#             if temp_out.isOpened():
-#                 temp_out.release()
-#                 os.remove("test.mp4")
-#                 return codec
-#             temp_out.release()
-#         except:
-#             continue
-#     return None
-
+            
 def find_camera():
     """Find an available camera index."""
     for index in range(5):  # Try indices 0 to 4
@@ -369,6 +312,59 @@ def find_camera():
     st.error("No cameras found. Please connect a camera.")
     return None
 
+def real_time_inference(model, class_map, device, video_source=0):
+    """Perform real-time object detection using webcam.
+
+    Args:
+        model: The object detection model.
+        class_map: Dictionary mapping class IDs to labels for visualization.
+        device: Device to run the model on (e.g., 'cuda' or 'cpu').
+        video_source: Webcam index (default 0).
+    """
+    # Initialize session state for stopping inference
+    if "stop_inference" not in st.session_state:
+        st.session_state.stop_inference = False
+
+    # Stop button
+    if st.button("Stop Inference"):
+        st.session_state.stop_inference = True
+        st.experimental_rerun()
+
+    # Initialize video capture
+    cap = cv2.VideoCapture(video_source)
+    if not cap.isOpened():
+        st.error("Error opening webcam. Ensure a camera is connected or try a different video source index.")
+        logger.error(f"Failed to open video source: {video_source}")
+        return
+
+    # Placeholder for video display
+    placeholder = st.empty()
+
+    try:
+        while not st.session_state.stop_inference:
+            ret, frame = cap.read()
+            if not ret:
+                logger.warning("Failed to read frame, stopping inference")
+                st.warning("End of camera feed.")
+                break
+            frame = cv2.resize(frame, (640, 480))
+            results = run_inference(model, frame, device=device)
+            if results:
+                img_annotated = draw_boxes_on_image(
+                    Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)),
+                    results,
+                    class_map
+                )
+                frame = cv2.cvtColor(np.array(img_annotated), cv2.COLOR_RGB2BGR)
+            placeholder.image(frame, caption="Real-time Object Detection", channels="BGR", use_container_width=True)
+            time.sleep(0.03)  # Control frame rate (~33 FPS)
+    except Exception as e:
+        st.error(f"Error during inference: {str(e)}")
+        logger.error(f"Inference error: {str(e)}")
+    finally:
+        cap.release()
+        logger.info("Video capture released")
+        
 def get_available_codec():
     """Return an available video codec, prioritizing H.264."""
     codecs = ["avc1", "mp4v", "XVID"]
@@ -388,90 +384,6 @@ def get_available_codec():
     logger.warning("No suitable codec found")
     st.error("No suitable video codec found.")
     return None
-
-def real_time_inference(model, class_map, video_source=0):
-    """Perform real-time object detection using webcam or video file."""
-    if "stop_inference" not in st.session_state:
-        st.session_state.stop_inference = False
-
-    # Stop button
-    if st.button("Stop Inference"):
-        st.session_state.stop_inference = True
-        st.experimental_rerun()
-
-    # Video file upload option
-    st.write("Upload a video file (MP4, AVI, MOV) or use webcam.")
-    video_file = st.file_uploader("Upload a video for testing", type=["mp4", "avi", "mov"])
-    temp_file_path = None
-    if video_file is not None:
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as tfile:
-            tfile.write(video_file.read())
-            temp_file_path = tfile.name
-            video_source = temp_file_path
-            st.session_state.video_uploaded = True
-    else:
-        st.session_state.video_uploaded = False
-        if video_source == 0:  # Default to webcam
-            video_source = find_camera()
-            if video_source is None:
-                st.error("No cameras found. Please upload a video file to continue.")
-                return
-
-    # Initialize video capture
-    cap = cv2.VideoCapture(video_source)
-    if not cap.isOpened():
-        st.error("Error opening video stream or file. Ensure a camera is connected or the file is valid.")
-        logger.error(f"Failed to open video source: {video_source}")
-        return
-
-    # Get codec for potential video output
-    codec = get_available_codec()
-    if codec is None:
-        st.warning("No codec available for saving video, proceeding without recording.")
-
-    # Placeholder for video display
-    placeholder = st.empty()
-    
-    # Optional video writer (if codec is available)
-    out = None
-    if codec:
-        fourcc = cv2.VideoWriter_fourcc(*codec)
-        out = cv2.VideoWriter("output.mp4", fourcc, 30, (640, 480))
-
-    try:
-        while not st.session_state.stop_inference:
-            ret, frame = cap.read()
-            if not ret:
-                logger.warning("Failed to read frame, stopping inference")
-                st.warning("End of video or camera feed.")
-                break
-            frame = cv2.resize(frame, (640, 480))
-            results = run_inference(model, frame)
-            if results:
-                img_annotated = draw_boxes_on_image(Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)), 
-                                                  results, class_map)
-                frame = cv2.cvtColor(np.array(img_annotated), cv2.COLOR_RGB2BGR)
-            placeholder.image(frame, caption="Real-time Object Detection", channels="BGR", use_container_width=True)
-            if out:
-                out.write(frame)
-            time.sleep(0.03)  # Control frame rate
-    except Exception as e:
-        st.error(f"Error during inference: {str(e)}")
-        logger.error(f"Inference error: {str(e)}")
-    finally:
-        cap.release()
-        if out:
-            out.release()
-            logger.info("Video writer released")
-        if temp_file_path and os.path.exists(temp_file_path):
-            try:
-                os.unlink(temp_file_path)
-                logger.info(f"Deleted temporary file: {temp_file_path}")
-            except Exception as e:
-                logger.warning(f"Failed to delete temp file {temp_file_path}: {str(e)}")
-        if os.path.exists("output.mp4"):
-            st.success("Processed video saved as output.mp4")
-            
             
 # def find_camera():
 #     """Find an available camera index for OpenCV fallback."""
@@ -598,25 +510,24 @@ def real_time_inference(model, class_map, video_source=0):
 #                     os.unlink(temp_file_path)
 #                     logger.info(f"Deleted temporary file: {temp_file_path}")
 #                 except Exception as e:
-#                     logger.warning(f"Failed to delete temp file {temp_file_path}: {str(e)}")
-                                    
-def get_available_codec():
-    """Return an available video codec, prioritizing H.264."""
-    codecs = ["avc1", "mp4v", "XVID"]
-    for codec in codecs:
-        try:
-            fourcc = cv2.VideoWriter_fourcc(*codec)
-            temp_out = cv2.VideoWriter("test.mp4", fourcc, 30, (640, 480))
-            if temp_out.isOpened():
-                temp_out.release()
-                os.remove("test.mp4")
-                logger.info(f"Selected codec: {codec}")
-                return codec
-            temp_out.release()
-        except Exception as e:
-            logger.warning(f"Codec {codec} not available: {str(e)}")
-    logger.error("No suitable codec found")
-    return None
+#                     logger.warning(f"Failed to delete temp file {temp_file_path}: {str(e)}")                               
+# def get_available_codec():
+#     """Return an available video codec, prioritizing H.264."""
+#     codecs = ["avc1", "mp4v", "XVID"]
+#     for codec in codecs:
+#         try:
+#             fourcc = cv2.VideoWriter_fourcc(*codec)
+#             temp_out = cv2.VideoWriter("test.mp4", fourcc, 30, (640, 480))
+#             if temp_out.isOpened():
+#                 temp_out.release()
+#                 os.remove("test.mp4")
+#                 logger.info(f"Selected codec: {codec}")
+#                 return codec
+#             temp_out.release()
+#         except Exception as e:
+#             logger.warning(f"Codec {codec} not available: {str(e)}")
+#     logger.error("No suitable codec found")
+#     return None
 
 def main():
     """Main function to run the Streamlit app."""
