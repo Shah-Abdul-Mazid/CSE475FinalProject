@@ -23,7 +23,7 @@ from logging.handlers import RotatingFileHandler
 import plotly.express as px
 from yolo_cam.eigen_cam import EigenCAM
 from yolo_cam.utils.image import scale_cam_image, show_cam_on_image
-from streamlit_webrtc import VideoTransformerBase, webrtc_streamer
+from streamlit_webrtc import  webrtc_streamer
 
 # Setup logging
 handler = RotatingFileHandler("app.log", maxBytes=10*1024*1024, backupCount=5)
@@ -312,59 +312,6 @@ def find_camera():
     st.error("No cameras found. Please connect a camera.")
     return None
 
-def real_time_inference(model, class_map, device, video_source=0):
-    """Perform real-time object detection using webcam.
-
-    Args:
-        model: The object detection model.
-        class_map: Dictionary mapping class IDs to labels for visualization.
-        device: Device to run the model on (e.g., 'cuda' or 'cpu').
-        video_source: Webcam index (default 0).
-    """
-    # Initialize session state for stopping inference
-    if "stop_inference" not in st.session_state:
-        st.session_state.stop_inference = False
-
-    # Stop button
-    if st.button("Stop Inference"):
-        st.session_state.stop_inference = True
-        st.experimental_rerun()
-
-    # Initialize video capture
-    cap = cv2.VideoCapture(video_source)
-    if not cap.isOpened():
-        st.error("Error opening webcam. Ensure a camera is connected or try a different video source index.")
-        logger.error(f"Failed to open video source: {video_source}")
-        return
-
-    # Placeholder for video display
-    placeholder = st.empty()
-
-    try:
-        while not st.session_state.stop_inference:
-            ret, frame = cap.read()
-            if not ret:
-                logger.warning("Failed to read frame, stopping inference")
-                st.warning("End of camera feed.")
-                break
-            frame = cv2.resize(frame, (640, 480))
-            results = run_inference(model, frame, device=device)
-            if results:
-                img_annotated = draw_boxes_on_image(
-                    Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)),
-                    results,
-                    class_map
-                )
-                frame = cv2.cvtColor(np.array(img_annotated), cv2.COLOR_RGB2BGR)
-            placeholder.image(frame, caption="Real-time Object Detection", channels="BGR", use_container_width=True)
-            time.sleep(0.03)  # Control frame rate (~33 FPS)
-    except Exception as e:
-        st.error(f"Error during inference: {str(e)}")
-        logger.error(f"Inference error: {str(e)}")
-    finally:
-        cap.release()
-        logger.info("Video capture released")
-        
 def get_available_codec():
     """Return an available video codec, prioritizing H.264."""
     codecs = ["avc1", "mp4v", "XVID"]
@@ -384,7 +331,59 @@ def get_available_codec():
     logger.warning("No suitable codec found")
     st.error("No suitable video codec found.")
     return None
-            
+
+def real_time_inference(model, class_map, device):
+    """Perform real-time object detection using WebRTC.
+
+    Args:
+        model: The object detection model.
+        class_map: Dictionary mapping class IDs to labels for visualization.
+        device: Device to run the model on (e.g., 'cuda' or 'cpu').
+    """
+    try:
+        # Initialize session state for stopping inference
+        if "stop_inference" not in st.session_state:
+            st.session_state.stop_inference = False
+
+        # Stop button
+        if st.button("Stop Inference"):
+            st.session_state.stop_inference = True
+            st.experimental_rerun()
+
+        if not st.session_state.stop_inference:
+            def process_frame(frame):
+                try:
+                    img = frame.to_ndarray(format="bgr24")
+                    img = cv2.resize(img, (640, 480))
+                    results = run_inference(model, img)
+                    if results:
+                        img_annotated = draw_boxes_on_image(
+                            Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB)),
+                            results,
+                            class_map
+                        )
+                        img = cv2.cvtColor(np.array(img_annotated), cv2.COLOR_RGB2BGR)
+                    return img
+                except Exception as e:
+                    logger.error(f"Error processing frame: {str(e)}")
+                    return frame.to_ndarray(format="bgr24")
+
+            # Start WebRTC streamer with frame callback
+            webrtc_streamer(
+                key="real-time-detection",
+                mode=WebRtcMode.SENDRECV,
+                video_frame_callback=process_frame,
+                async_processing=True,
+                media_stream_constraints={"video": True, "audio": False},
+                rtc_configuration=RTCConfiguration({"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]})
+            )
+        else:
+            st.info("Real-time detection stopped.")
+            logger.info("Real-time detection stopped by user.")
+    except Exception as e:
+        st.error(f"Error during real-time inference: {str(e)}")
+        logger.error(f"Error during real-time inference: {str(e)}")
+
 def main():
     """Main function to run the Streamlit app."""
     icon_path = BASE_DIR / "assets" / "artificial-intelligence.png"
@@ -648,15 +647,15 @@ def main():
 
     elif selected == "Real-time Detection":
         st.subheader("Real-time Object Detection")
-        st.write("Perform object detection using your webcam (via WebRTC) or an uploaded video. Click 'Stop Inference' to end the session.")
+        st.write("Perform object detection using your webcam via WebRTC. Click 'Stop Inference' to end the session.")
         model_choice_rt = st.selectbox("Select YOLO Model for Real-time Detection", ["select a model"] + list(MODEL_PATHS.keys()))
 
         if model_choice_rt != "select a model":
             model_path = MODEL_PATHS.get(model_choice_rt)
             model = get_model(model_path)
             if model:
-                st.info("Starting inference. Allow webcam access in your browser or upload a video file.")
-                real_time_inference(model, class_map, get_device(), video_source=0)            
+                st.info("Starting inference. Allow webcam access in your browser.")
+                real_time_inference(model, class_map, get_device())
             else:
                 st.error("Model could not be loaded.")
                 logger.error("Model loading failed")
