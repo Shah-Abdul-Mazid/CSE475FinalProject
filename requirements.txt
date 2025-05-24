@@ -11,5 +11,4 @@ matplotlib
 opencv-python-headless
 ttach
 plotly
-PyGithub==1.59.1
 streamlit-webrtc
