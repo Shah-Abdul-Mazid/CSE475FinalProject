@@ -354,7 +354,7 @@ def display_images_grid(title, image_paths):
 #             continue
 #     return None
 def find_camera():
-    """Find an available camera index."""
+    """Find an available camera index for OpenCV fallback."""
     st.info("Searching for available cameras...")
     for index in range(10):
         for backend in [cv2.CAP_ANY, cv2.CAP_DSHOW, cv2.CAP_V4L2, cv2.CAP_AVFOUNDATION]:
@@ -364,24 +364,61 @@ def find_camera():
                 st.success(f"Camera found at index {index} with backend {backend}")
                 cap.release()
                 return index
-            else:
-                logger.info(f"No camera at index {index} with backend {backend}")
-                st.warning(f"No camera at index {index} with backend {backend}")
             cap.release()
     logger.warning("No cameras found")
     st.error("No cameras found. Please connect a camera or upload a video file.")
     return None
 
-def real_time_inference(model, device, video_source=0):
-    """Perform real-time object detection using webcam or video file."""
+class VideoTransformer(VideoTransformerBase):
+    """WebRTC transformer for YOLO object detection."""
+    def __init__(self, model, class_map):
+        self.model = model
+        self.class_map = class_map
+        self.frame_count = 0
+
+    def transform(self, frame):
+        try:
+            img = frame.to_ndarray(format="bgr24")
+            img = cv2.resize(img, (640, 480))
+            results = run_inference(self.model, img)
+            if results:
+                img_annotated = draw_boxes_on_image(Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB)), 
+                                                 results, self.class_map)
+                img = cv2.cvtColor(np.array(img_annotated), cv2.COLOR_RGB2BGR)
+            self.frame_count += 1
+            logger.info(f"Processed frame {self.frame_count}")
+            return img
+        except Exception as e:
+            logger.error(f"WebRTC transform error: {str(e)}")
+            return frame.to_ndarray(format="bgr24")
+
+def real_time_inference(model, device):
+    """Perform real-time object detection using WebRTC or video file fallback."""
     if "stop_inference" not in st.session_state:
         st.session_state.stop_inference = False
 
+    st.write("Attempting to access webcam via WebRTC. Ensure browser permissions are granted.")
+    
+    # WebRTC streamer
+    if not st.session_state.stop_inference:
+        try:
+            webrtc_streamer(
+                key="yolo-detection",
+                video_transformer_factory=lambda: VideoTransformer(model, class_map),
+                rtc_configuration={"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]},
+                media_stream_constraints={"video": True, "audio": False}
+            )
+        except Exception as e:
+            st.error(f"WebRTC error: {str(e)}. Falling back to video file upload.")
+            logger.error(f"WebRTC error: {str(e)}")
+
+    # Stop button
     if st.button("Stop Inference"):
         st.session_state.stop_inference = True
+        st.experimental_rerun()
 
-    # Prominent video file uploader
-    st.write("If no camera is available, upload a video file below to perform inference.")
+    # Fallback to video file upload
+    st.write("If webcam access fails, upload a video file below.")
     video_file = st.file_uploader("Upload a video for testing (MP4, AVI, MOV)", type=["mp4", "avi", "mov"])
     temp_file_path = None
     if video_file is not None:
@@ -392,59 +429,57 @@ def real_time_inference(model, device, video_source=0):
             st.session_state.video_uploaded = True
     else:
         st.session_state.video_uploaded = False
-
-    # Try camera if no video file is uploaded
-    if video_file is None:
         video_source = find_camera()
         if video_source is None:
             st.error("No cameras found. Please upload a video file to continue.")
             return
 
-    # Open video source (camera or file)
-    backends = [cv2.CAP_ANY, cv2.CAP_DSHOW, cv2.CAP_V4L2, cv2.CAP_AVFOUNDATION]
-    cap = None
-    for backend in backends:
-        cap = cv2.VideoCapture(video_source, backend)
-        if cap.isOpened():
-            logger.info(f"Video source opened with backend: {backend}")
-            st.info(f"Video source opened with backend: {backend}")
-            break
-        cap.release()
-
-    if not cap or not cap.isOpened():
-        st.error("Error opening video stream or file. Ensure a camera is connected or the file is valid.")
-        logger.error(f"Failed to open video source: {video_source}")
-        return
-
-    placeholder = st.empty()
-    
-    try:
-        while not st.session_state.stop_inference:
-            ret, frame = cap.read()
-            if not ret:
-                logger.warning("Failed to read frame, stopping inference")
-                st.warning("End of video or camera feed.")
+    # OpenCV fallback for video file or camera
+    if video_file is not None or video_source is not None:
+        backends = [cv2.CAP_ANY, cv2.CAP_DSHOW, cv2.CAP_V4L2, cv2.CAP_AVFOUNDATION]
+        cap = None
+        for backend in backends:
+            cap = cv2.VideoCapture(video_source, backend)
+            if cap.isOpened():
+                logger.info(f"Video source opened with backend: {backend}")
+                st.info(f"Video source opened with backend: {backend}")
                 break
-            frame = cv2.resize(frame, (640, 480))
-            results = run_inference(model, frame)
-            if results:
-                img_annotated = draw_boxes_on_image(Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)), results, class_map)
-                frame = np.array(img_annotated)
-                frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
-                placeholder.image(frame, caption="Real-time Object Detection", channels="BGR", use_container_width=True)
-            time.sleep(0.03)
-    except Exception as e:
-        st.error(f"Error during inference: {str(e)}")
-        logger.error(f"Inference error: {str(e)}")
-    finally:
-        cap.release()
-        if temp_file_path and os.path.exists(temp_file_path):
-            try:
-                os.unlink(temp_file_path)
-                logger.info(f"Deleted temporary file: {temp_file_path}")
-            except Exception as e:
-                logger.warning(f"Failed to delete temp file {temp_file_path}: {str(e)}")
-                
+            cap.release()
+
+        if not cap or not cap.isOpened():
+            st.error("Error opening video stream or file. Ensure a camera is connected or the file is valid.")
+            logger.error(f"Failed to open video source: {video_source}")
+            return
+
+        placeholder = st.empty()
+        
+        try:
+            while not st.session_state.stop_inference:
+                ret, frame = cap.read()
+                if not ret:
+                    logger.warning("Failed to read frame, stopping inference")
+                    st.warning("End of video or camera feed.")
+                    break
+                frame = cv2.resize(frame, (640, 480))
+                results = run_inference(model, frame)
+                if results:
+                    img_annotated = draw_boxes_on_image(Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)), 
+                                                      results, class_map)
+                    frame = cv2.cvtColor(np.array(img_annotated), cv2.COLOR_RGB2BGR)
+                    placeholder.image(frame, caption="Real-time Object Detection", channels="BGR", use_container_width=True)
+                time.sleep(0.03)
+        except Exception as e:
+            st.error(f"Error during inference: {str(e)}")
+            logger.error(f"Inference error: {str(e)}")
+        finally:
+            cap.release()
+            if temp_file_path and os.path.exists(temp_file_path):
+                try:
+                    os.unlink(temp_file_path)
+                    logger.info(f"Deleted temporary file: {temp_file_path}")
+                except Exception as e:
+                    logger.warning(f"Failed to delete temp file {temp_file_path}: {str(e)}")
+                                    
 def get_available_codec():
     """Return an available video codec, prioritizing H.264."""
     codecs = ["avc1", "mp4v", "XVID"]
@@ -896,39 +931,32 @@ def main():
     #                     logger.info(f"Deleted temporary input file: {input_video_path}")
     #                 except Exception as e:
     #                     logger.warning(f"Failed to delete input file {input_video_path}: {str(e)}")
-    elif selected == "Real-time Detection":
+if selected == "Real-time Detection":
         st.subheader("Real-time Object Detection")
-        st.write("Perform object detection using your webcam or an uploaded video. Click 'Stop Inference' to end the session.")
+        st.write("Perform object detection using your webcam (via WebRTC) or an uploaded video. Click 'Stop Inference' to end the session.")
         model_choice_rt = st.selectbox("Select YOLO Model for Real-time Detection", ["select a model"] + list(MODEL_PATHS.keys()))
 
         if model_choice_rt != "select a model":
             model_path = MODEL_PATHS.get(model_choice_rt)
             model = get_model(model_path)
             if model:
-                # Find camera index
-                camera_index = find_camera()
-                if camera_index is None and not st.session_state.get("video_uploaded", False):
-                    st.error("No cameras found. Please connect a camera or upload a video file.")
-                    return
-                st.info("Starting inference. Click 'Stop Inference' to stop.")
-                real_time_inference(model, get_device(), video_source=camera_index if camera_index is not None else 0)
+                st.info("Starting inference. Allow webcam access in your browser or upload a video file.")
+                real_time_inference(model, get_device())
             else:
                 st.error("Model could not be loaded.")
                 logger.error("Model loading failed")
 
     elif selected == "Upload Video":
         st.subheader("Upload a Video for Inference")
-        st.write("Upload an MP4, AVI, or MOV video to run object detection using the selected YOLO model. The processed video will be available for download.")
+        st.write("Upload an MP4, AVI, or MOV video to run object detection using the selected YOLO model.")
         video_file = st.file_uploader("Upload Video", type=["mp4", "avi", "mov"])
         model_choice_vid = st.selectbox("Select YOLO Model for Video Inference", ["select a model"] + list(valid_models.keys()))
         
-        # Additional options for video processing
-        resize_factor = st.slider("Output Video Resize Factor", min_value=0.1, max_value=1.0, value=1.0, step=0.1, help="Reduce resolution to speed up processing (e.g., 0.5 for half size).")
-        frame_skip = st.slider("Process Every Nth Frame", min_value=1, max_value=10, value=1, step=1, help="Process every Nth frame to speed up processing (1 = process all frames).")
-        output_subfolder = st.text_input("Output Subfolder Name (optional, defaults to timestamp)", "", help="Enter a subfolder name to save the processed video (e.g., 'my_videos'). Saved in output_videos/<subfolder>.")
+        resize_factor = st.slider("Output Video Resize Factor", min_value=0.1, max_value=1.0, value=1.0, step=0.1)
+        frame_skip = st.slider("Process Every Nth Frame", min_value=1, max_value=10, value=1, step=1)
+        output_subfolder = st.text_input("Output Subfolder Name (optional, defaults to timestamp)", "")
 
         if video_file is not None and model_choice_vid != "select a model":
-            # Display input video
             st.subheader("Input Video")
             input_video_bytes = video_file.read()
             st.video(input_video_bytes, format=video_file.type)
@@ -944,20 +972,17 @@ def main():
             input_video_path = None
             output_video_path = None
             try:
-                # Save input video to temporary file
                 with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as tfile:
                     tfile.write(input_video_bytes)
                     input_video_path = tfile.name
                 logger.info(f"Input video saved to: {input_video_path}")
 
-                # Open input video
                 cap = cv2.VideoCapture(input_video_path)
                 if not cap.isOpened():
-                    st.error("Error: Could not open the input video file. Ensure the file is a valid video format (MP4, AVI, MOV) and not corrupted. Try converting the video using FFmpeg (e.g., `ffmpeg -i input.mov -c:v libx264 output.mp4`).")
+                    st.error("Error: Could not open the input video file. Ensure the file is valid (MP4, AVI, MOV).")
                     logger.error(f"Could not open video file: {input_video_path}")
                     return
 
-                # Get and log video properties
                 frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH) * resize_factor)
                 frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT) * resize_factor)
                 frame_width = frame_width if frame_width % 2 == 0 else frame_width + 1
@@ -965,33 +990,29 @@ def main():
                 fps = int(cap.get(cv2.CAP_PROP_FPS)) or 30
                 total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
                 frames_to_process = total_frames // frame_skip
-                logger.info(f"Input video properties: resolution={frame_width}x{frame_height}, fps={fps}, total_frames={total_frames}, frames_to_process={frames_to_process}")
+                logger.info(f"Input video properties: resolution={frame_width}x{frame_height}, fps={fps}, total_frames={total_frames}")
 
-                # Create output folder
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                 subfolder = output_subfolder.strip() or timestamp
                 output_dir = os.path.join(BASE_DIR, "output_videos", subfolder)
                 os.makedirs(output_dir, exist_ok=True)
                 output_video_path = os.path.join(output_dir, f"processed_video_{timestamp}.mp4")
                 st.info(f"Output video will be saved to: {output_video_path}")
-                logger.info(f"Output video will be saved to: {output_video_path}")
 
-                # Initialize video writer
                 codec = get_available_codec()
                 if not codec:
-                    st.error("Error: No suitable codec found. Ensure FFmpeg is installed and OpenCV is built with FFmpeg support.")
+                    st.error("Error: No suitable codec found. Ensure FFmpeg is installed.")
                     logger.error("No codec available")
                     cap.release()
                     return
                 fourcc = cv2.VideoWriter_fourcc(*codec)
                 out = cv2.VideoWriter(output_video_path, fourcc, fps, (frame_width, frame_height))
                 if not out.isOpened():
-                    st.error("Error: Could not initialize video writer. Check FFmpeg installation and OpenCV build.")
+                    st.error("Error: Could not initialize video writer.")
                     logger.error(f"Failed to initialize video writer with codec: {codec}")
                     cap.release()
                     return
 
-                # Process video
                 st.subheader("Processing Video")
                 progress_bar = st.progress(0)
                 status_text = st.empty()
@@ -1007,12 +1028,11 @@ def main():
                                 frame = cv2.resize(frame, (frame_width, frame_height), interpolation=cv2.INTER_AREA)
                             results = run_inference(model, frame)
                             if results:
-                                img_annotated = draw_boxes_on_image(Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)), results, class_map)
+                                img_annotated = draw_boxes_on_image(Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)), 
+                                                                  results, class_map)
                                 frame_out = cv2.cvtColor(np.array(img_annotated), cv2.COLOR_RGB2BGR)
-                                logger.info(f"Frame {frame_count}: Inference successful, writing annotated frame")
                                 out.write(frame_out)
                             else:
-                                logger.warning(f"Frame {frame_count}: Inference failed, writing original frame")
                                 out.write(frame)
                             processed_count += 1
                             progress = min(processed_count / frames_to_process, 1.0)
@@ -1028,16 +1048,14 @@ def main():
                 out.release()
                 logger.info(f"Output video saved to: {output_video_path}")
 
-                # Verify output video
                 output_cap = cv2.VideoCapture(output_video_path)
                 if not output_cap.isOpened() or output_cap.get(cv2.CAP_PROP_FRAME_COUNT) == 0:
-                    st.error(f"Error: Output video is corrupt or empty. Check if FFmpeg supports the codec. Output path: {output_video_path}")
+                    st.error(f"Error: Output video is corrupt or empty. Output path: {output_video_path}")
                     logger.error(f"Output video is corrupt or empty: {output_video_path}")
                     output_cap.release()
                     return
                 output_cap.release()
 
-                # Provide download option
                 st.subheader("Download Processed Video")
                 if os.path.exists(output_video_path):
                     with open(output_video_path, "rb") as video_file:
@@ -1048,14 +1066,14 @@ def main():
                         file_name=f"processed_video_{timestamp}.mp4",
                         mime="video/mp4"
                     )
-                    st.success(f"Video processing complete! Saved to: {output_video_path}. Download and open in a media player like VLC.")
-                    logger.info("Download button provided for processed video")
+                    st.success(f"Video processing complete! Saved to: {output_video_path}")
+                    logger.info("Download button provided")
                 else:
-                    st.error(f"Error: Output video file not created. Check logs. Output path: {output_video_path}")
+                    st.error(f"Error: Output video file not created. Output path: {output_video_path}")
                     logger.error(f"Output video file not found: {output_video_path}")
 
             except Exception as e:
-                st.error(f"Error processing video: {str(e)}. Ensure FFmpeg is installed and the video format is supported.")
+                st.error(f"Error processing video: {str(e)}")
                 logger.error(f"Error processing video: {str(e)}")
             finally:
                 if input_video_path and os.path.exists(input_video_path):
@@ -1064,6 +1082,5 @@ def main():
                         logger.info(f"Deleted temporary input file: {input_video_path}")
                     except Exception as e:
                         logger.warning(f"Failed to delete input file {input_video_path}: {str(e)}")
-
 if __name__ == "__main__":
     main()
