@@ -11,6 +11,7 @@ import numpy as np
 import cv2
 import time
 from pathlib import Path
+import sys
 import asyncio
 import platform
 import warnings
@@ -22,12 +23,7 @@ from logging.handlers import RotatingFileHandler
 import plotly.express as px
 from yolo_cam.eigen_cam import EigenCAM
 from yolo_cam.utils.image import scale_cam_image, show_cam_on_image
-from streamlit_webrtc import webrtc_streamer, WebRtcMode, RTCConfiguration
-from github import Github
-from dotenv import load_dotenv
-
-# Load environment variables
-load_dotenv()
+from streamlit_webrtc import  webrtc_streamer
 
 # Setup logging
 handler = RotatingFileHandler("app.log", maxBytes=10*1024*1024, backupCount=5)
@@ -147,7 +143,7 @@ IMAGE_PATHS_MAP = {
         "Precision Curve": BASE_DIR / "yolo_training" / "yolov10_AdamW" / "P_curve.png",
         "Precision-Recall Curve": BASE_DIR / "yolo_training" / "yolov10_AdamW" / "PR_curve.png",
         "Recall Curve": BASE_DIR / "yolo_training" / "yolov10_AdamW" / "R_curve.png",
-        "Results": BASE_DIR / "yolo_training" / "yolov10_AdamW" / "results.png"
+        "Results": BASE_DIR / "yolo_training" / "yolo12_AdamW" / "results.png"
     },
     "YOLO10_with_Adamax": {
         "Normalized Confusion Matrix": BASE_DIR / "yolo_training" / "yolov10_Adamax" / "confusion_matrix_normalized.png",
@@ -301,10 +297,10 @@ def display_images_grid(title, image_paths):
         else:
             st.warning(f"Image not found: {path}")
             logger.warning(f"Image not found: {path}")
-
+            
 def find_camera():
     """Find an available camera index."""
-    for index in range(5):
+    for index in range(5):  # Try indices 0 to 4
         cap = cv2.VideoCapture(index)
         if cap.isOpened():
             logger.info(f"Camera found at index {index}")
@@ -337,118 +333,56 @@ def get_available_codec():
     return None
 
 def real_time_inference(model, class_map, device):
-    """Perform real-time object detection using WebRTC, save output to a video file, and push to GitHub."""
+    """Perform real-time object detection using WebRTC.
+
+    Args:
+        model: The object detection model.
+        class_map: Dictionary mapping class IDs to labels for visualization.
+        device: Device to run the model on (e.g., 'cuda' or 'cpu').
+    """
     try:
+        # Initialize session state for stopping inference
         if "stop_inference" not in st.session_state:
             st.session_state.stop_inference = False
 
-        # Setup video saving
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        output_dir = BASE_DIR / "output_videos" / timestamp
-        os.makedirs(output_dir, exist_ok=True)
-        output_video_path = output_dir / f"realtime_detection_{timestamp}.mp4"
-        
-        codec = get_available_codec()
-        if not codec:
-            st.error("Error: No suitable codec found. Ensure FFmpeg is installed.")
-            logger.error("No codec available")
-            return
-        fourcc = cv2.VideoWriter_fourcc(*codec)
-        out = cv2.VideoWriter(str(output_video_path), fourcc, 30, (640, 480))
-        if not out.isOpened():
-            st.error("Error: Could not initialize video writer.")
-            logger.error(f"Failed to initialize video writer with codec: {codec}")
-            return
+        # Stop button
+        if st.button("Stop Inference"):
+            st.session_state.stop_inference = True
+            st.experimental_rerun()
 
-        col1, col2 = st.columns([3, 1])
-        with col2:
-            if st.button("Stop Inference", key="stop_inference"):
-                st.session_state.stop_inference = True
-                out.release()
-                # Push to GitHub
-                if output_video_path.exists():
-                    try:
-                        GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
-                        GITHUB_REPO = os.getenv("GITHUB_REPO", "your-username/traffic-detection-app")
-                        if not GITHUB_TOKEN:
-                            st.warning("GitHub token not found. Video saved locally but not pushed to GitHub.")
-                            logger.warning("GitHub token not found.")
-                        else:
-                            g = Github(GITHUB_TOKEN)
-                            repo = g.get_repo(GITHUB_REPO)
-                            video_path = f"output_videos/{timestamp}/realtime_detection_{timestamp}.mp4"
-                            with open(output_video_path, "rb") as video_file:
-                                content = video_file.read()
-                            # Check file size (GitHub limit: 100 MB)
-                            file_size_mb = len(content) / (1024 * 1024)
-                            if file_size_mb > 100:
-                                st.warning(f"Video file ({file_size_mb:.2f} MB) exceeds GitHub's 100 MB limit. Consider using Git LFS or cloud storage.")
-                                logger.warning(f"Video file ({file_size_mb:.2f} MB) exceeds GitHub limit.")
-                            else:
-                                repo.create_file(
-                                    path=video_path,
-                                    message=f"Add real-time detection video {timestamp}",
-                                    content=content,
-                                    branch="main"
-                                )
-                                st.success(f"Video pushed to GitHub: {video_path}")
-                                logger.info(f"Video pushed to GitHub: {video_path}")
-                    except Exception as e:
-                        st.error(f"Failed to push video to GitHub: {str(e)}")
-                        logger.error(f"Failed to push video to GitHub: {str(e)}")
-                st.rerun()
-
-        with col1:
-            st.markdown("### Live Webcam Feed with Object Detection")
-            if not st.session_state.stop_inference:
-                def process_frame(frame):
-                    try:
-                        img = frame.to_ndarray(format="bgr24")
-                        if img is None or img.size == 0:
-                            logger.warning("Empty frame received")
-                            return img
-                        img = cv2.resize(img, (640, 480))
-                        results = run_inference(model, img)
-                        if results:
-                            img_annotated = draw_boxes_on_image(
-                                Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB)),
-                                results,
-                                class_map
-                            )
-                            img = cv2.cvtColor(np.array(img_annotated), cv2.COLOR_RGB2BGR)
-                        out.write(img)  # Save frame to video
-                        return img
-                    except Exception as e:
-                        logger.error(f"Error processing frame: {str(e)}")
-                        return frame.to_ndarray(format="bgr24") if frame else None
-
-                webrtc_streamer(
-                    key="real-time-detection",
-                    mode=WebRtcMode.SENDRECV,
-                    video_frame_callback=process_frame,
-                    async_processing=True,
-                    media_stream_constraints={"video": True, "audio": False},
-                    rtc_configuration=RTCConfiguration({"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]})
-                )
-                st.info(f"Saving detection output to: {output_video_path}")
-            else:
-                st.info("Real-time detection stopped.")
-                logger.info("Real-time detection stopped by user.")
-                out.release()
-                if output_video_path.exists():
-                    st.success(f"Detection video saved to: {output_video_path}")
-                    with open(output_video_path, "rb") as video_file:
-                        st.download_button(
-                            label="Download Detection Video",
-                            data=video_file,
-                            file_name=f"realtime_detection_{timestamp}.mp4",
-                            mime="video/mp4"
+        if not st.session_state.stop_inference:
+            def process_frame(frame):
+                try:
+                    img = frame.to_ndarray(format="bgr24")
+                    img = cv2.resize(img, (640, 480))
+                    results = run_inference(model, img)
+                    if results:
+                        img_annotated = draw_boxes_on_image(
+                            Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB)),
+                            results,
+                            class_map
                         )
+                        img = cv2.cvtColor(np.array(img_annotated), cv2.COLOR_RGB2BGR)
+                    return img
+                except Exception as e:
+                    logger.error(f"Error processing frame: {str(e)}")
+                    return frame.to_ndarray(format="bgr24")
+
+            # Start WebRTC streamer with frame callback
+            webrtc_streamer(
+                key="real-time-detection",
+                mode=WebRtcMode.SENDRECV,
+                video_frame_callback=process_frame,
+                async_processing=True,
+                media_stream_constraints={"video": True, "audio": False},
+                rtc_configuration=RTCConfiguration({"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]})
+            )
+        else:
+            st.info("Real-time detection stopped.")
+            logger.info("Real-time detection stopped by user.")
     except Exception as e:
         st.error(f"Error during real-time inference: {str(e)}")
         logger.error(f"Error during real-time inference: {str(e)}")
-        if 'out' in locals():
-            out.release()
 
 def main():
     """Main function to run the Streamlit app."""
@@ -713,17 +647,14 @@ def main():
 
     elif selected == "Real-time Detection":
         st.subheader("Real-time Object Detection")
-        st.write("Perform object detection using your webcam. Select a YOLO model and allow webcam access to start the live feed. Click 'Stop Inference' to end the session.")
-        camera_index = find_camera()
-        if camera_index is None:
-            st.stop()
+        st.write("Perform object detection using your webcam via WebRTC. Click 'Stop Inference' to end the session.")
+        model_choice_rt = st.selectbox("Select YOLO Model for Real-time Detection", ["select a model"] + list(MODEL_PATHS.keys()))
 
-        model_choice_rt = st.selectbox("Select YOLO Model for Real-time Detection", ["select a model"] + list(valid_models.keys()))
         if model_choice_rt != "select a model":
-            model_path = valid_models.get(model_choice_rt)
+            model_path = MODEL_PATHS.get(model_choice_rt)
             model = get_model(model_path)
             if model:
-                st.info("Starting real-time detection. Please allow webcam access in your browser.")
+                st.info("Starting inference. Allow webcam access in your browser.")
                 real_time_inference(model, class_map, get_device())
             else:
                 st.error("Model could not be loaded.")
@@ -734,7 +665,7 @@ def main():
         st.write("Upload an MP4, AVI, or MOV video to run object detection using the selected YOLO model.")
         video_file = st.file_uploader("Upload Video", type=["mp4", "avi", "mov"])
         model_choice_vid = st.selectbox("Select YOLO Model for Video Inference", ["select a model"] + list(valid_models.keys()))
-
+        
         resize_factor = st.slider("Output Video Resize Factor", min_value=0.1, max_value=1.0, value=1.0, step=0.1)
         frame_skip = st.slider("Process Every Nth Frame", min_value=1, max_value=10, value=1, step=1)
         output_subfolder = st.text_input("Output Subfolder Name (optional, defaults to timestamp)", "")
@@ -811,7 +742,7 @@ def main():
                                 frame = cv2.resize(frame, (frame_width, frame_height), interpolation=cv2.INTER_AREA)
                             results = run_inference(model, frame)
                             if results:
-                                img_annotated = draw_boxes_on_image(Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)),
+                                img_annotated = draw_boxes_on_image(Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)), 
                                                                   results, class_map)
                                 frame_out = cv2.cvtColor(np.array(img_annotated), cv2.COLOR_RGB2BGR)
                                 out.write(frame_out)
@@ -865,6 +796,6 @@ def main():
                         logger.info(f"Deleted temporary input file: {input_video_path}")
                     except Exception as e:
                         logger.warning(f"Failed to delete input file {input_video_path}: {str(e)}")
-
 if __name__ == "__main__":
     main()
+
