@@ -1,3 +1,4 @@
+```python
 import tempfile
 import streamlit as st
 from streamlit_option_menu import option_menu
@@ -23,6 +24,11 @@ import plotly.express as px
 from yolo_cam.eigen_cam import EigenCAM
 from yolo_cam.utils.image import scale_cam_image, show_cam_on_image
 from streamlit_webrtc import webrtc_streamer, WebRtcMode, RTCConfiguration
+from github import Github
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # Setup logging
 handler = RotatingFileHandler("app.log", maxBytes=10*1024*1024, backupCount=5)
@@ -332,15 +338,65 @@ def get_available_codec():
     return None
 
 def real_time_inference(model, class_map, device):
-    """Perform real-time object detection using WebRTC."""
+    """Perform real-time object detection using WebRTC, save output to a video file, and push to GitHub."""
     try:
         if "stop_inference" not in st.session_state:
             st.session_state.stop_inference = False
+
+        # Setup video saving
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        output_dir = BASE_DIR / "output_videos" / timestamp
+        os.makedirs(output_dir, exist_ok=True)
+        output_video_path = output_dir / f"realtime_detection_{timestamp}.mp4"
+        
+        codec = get_available_codec()
+        if not codec:
+            st.error("Error: No suitable codec found. Ensure FFmpeg is installed.")
+            logger.error("No codec available")
+            return
+        fourcc = cv2.VideoWriter_fourcc(*codec)
+        out = cv2.VideoWriter(str(output_video_path), fourcc, 30, (640, 480))
+        if not out.isOpened():
+            st.error("Error: Could not initialize video writer.")
+            logger.error(f"Failed to initialize video writer with codec: {codec}")
+            return
 
         col1, col2 = st.columns([3, 1])
         with col2:
             if st.button("Stop Inference", key="stop_inference"):
                 st.session_state.stop_inference = True
+                out.release()
+                # Push to GitHub
+                if output_video_path.exists():
+                    try:
+                        GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
+                        GITHUB_REPO = os.getenv("GITHUB_REPO", "your-username/traffic-detection-app")
+                        if not GITHUB_TOKEN:
+                            st.warning("GitHub token not found. Video saved locally but not pushed to GitHub.")
+                            logger.warning("GitHub token not found.")
+                        else:
+                            g = Github(GITHUB_TOKEN)
+                            repo = g.get_repo(GITHUB_REPO)
+                            video_path = f"output_videos/{timestamp}/realtime_detection_{timestamp}.mp4"
+                            with open(output_video_path, "rb") as video_file:
+                                content = video_file.read()
+                            # Check file size (GitHub limit: 100 MB)
+                            file_size_mb = len(content) / (1024 * 1024)
+                            if file_size_mb > 100:
+                                st.warning(f"Video file ({file_size_mb:.2f} MB) exceeds GitHub's 100 MB limit. Consider using Git LFS or cloud storage.")
+                                logger.warning(f"Video file ({file_size_mb:.2f} MB) exceeds GitHub limit.")
+                            else:
+                                repo.create_file(
+                                    path=video_path,
+                                    message=f"Add real-time detection video {timestamp}",
+                                    content=content,
+                                    branch="main"
+                                )
+                                st.success(f"Video pushed to GitHub: {video_path}")
+                                logger.info(f"Video pushed to GitHub: {video_path}")
+                    except Exception as e:
+                        st.error(f"Failed to push video to GitHub: {str(e)}")
+                        logger.error(f"Failed to push video to GitHub: {str(e)}")
                 st.rerun()
 
         with col1:
@@ -361,6 +417,7 @@ def real_time_inference(model, class_map, device):
                                 class_map
                             )
                             img = cv2.cvtColor(np.array(img_annotated), cv2.COLOR_RGB2BGR)
+                        out.write(img)  # Save frame to video
                         return img
                     except Exception as e:
                         logger.error(f"Error processing frame: {str(e)}")
@@ -374,12 +431,25 @@ def real_time_inference(model, class_map, device):
                     media_stream_constraints={"video": True, "audio": False},
                     rtc_configuration=RTCConfiguration({"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]})
                 )
+                st.info(f"Saving detection output to: {output_video_path}")
             else:
                 st.info("Real-time detection stopped.")
                 logger.info("Real-time detection stopped by user.")
+                out.release()
+                if output_video_path.exists():
+                    st.success(f"Detection video saved to: {output_video_path}")
+                    with open(output_video_path, "rb") as video_file:
+                        st.download_button(
+                            label="Download Detection Video",
+                            data=video_file,
+                            file_name=f"realtime_detection_{timestamp}.mp4",
+                            mime="video/mp4"
+                        )
     except Exception as e:
         st.error(f"Error during real-time inference: {str(e)}")
         logger.error(f"Error during real-time inference: {str(e)}")
+        if 'out' in locals():
+            out.release()
 
 def main():
     """Main function to run the Streamlit app."""
@@ -799,3 +869,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+```
