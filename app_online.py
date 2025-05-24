@@ -353,18 +353,23 @@ def display_images_grid(title, image_paths):
 #         except:
 #             continue
 #     return None
-
 def find_camera():
     """Find an available camera index."""
-    for index in range(5):  # Try indices 0 to 4
+    st.info("Searching for available cameras...")
+    for index in range(10):
         for backend in [cv2.CAP_ANY, cv2.CAP_DSHOW, cv2.CAP_V4L2, cv2.CAP_AVFOUNDATION]:
             cap = cv2.VideoCapture(index, backend)
             if cap.isOpened():
                 logger.info(f"Camera found at index {index} with backend {backend}")
+                st.success(f"Camera found at index {index} with backend {backend}")
                 cap.release()
                 return index
+            else:
+                logger.info(f"No camera at index {index} with backend {backend}")
+                st.warning(f"No camera at index {index} with backend {backend}")
             cap.release()
     logger.warning("No cameras found")
+    st.error("No cameras found. Please connect a camera or upload a video file.")
     return None
 
 def real_time_inference(model, device, video_source=0):
@@ -375,22 +380,34 @@ def real_time_inference(model, device, video_source=0):
     if st.button("Stop Inference"):
         st.session_state.stop_inference = True
 
-    # Allow video file as fallback if no camera is available
-    video_file = st.file_uploader("Upload a video for testing (if no camera)", type=["mp4", "avi", "mov"])
+    # Prominent video file uploader
+    st.write("If no camera is available, upload a video file below to perform inference.")
+    video_file = st.file_uploader("Upload a video for testing (MP4, AVI, MOV)", type=["mp4", "avi", "mov"])
     temp_file_path = None
     if video_file is not None:
         with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as tfile:
             tfile.write(video_file.read())
             temp_file_path = tfile.name
             video_source = temp_file_path
+            st.session_state.video_uploaded = True
+    else:
+        st.session_state.video_uploaded = False
 
-    # Try different backends for camera
+    # Try camera if no video file is uploaded
+    if video_file is None:
+        video_source = find_camera()
+        if video_source is None:
+            st.error("No cameras found. Please upload a video file to continue.")
+            return
+
+    # Open video source (camera or file)
     backends = [cv2.CAP_ANY, cv2.CAP_DSHOW, cv2.CAP_V4L2, cv2.CAP_AVFOUNDATION]
     cap = None
     for backend in backends:
         cap = cv2.VideoCapture(video_source, backend)
         if cap.isOpened():
             logger.info(f"Video source opened with backend: {backend}")
+            st.info(f"Video source opened with backend: {backend}")
             break
         cap.release()
 
@@ -406,6 +423,7 @@ def real_time_inference(model, device, video_source=0):
             ret, frame = cap.read()
             if not ret:
                 logger.warning("Failed to read frame, stopping inference")
+                st.warning("End of video or camera feed.")
                 break
             frame = cv2.resize(frame, (640, 480))
             results = run_inference(model, frame)
@@ -426,7 +444,7 @@ def real_time_inference(model, device, video_source=0):
                 logger.info(f"Deleted temporary file: {temp_file_path}")
             except Exception as e:
                 logger.warning(f"Failed to delete temp file {temp_file_path}: {str(e)}")
-
+                
 def get_available_codec():
     """Return an available video codec, prioritizing H.264."""
     codecs = ["avc1", "mp4v", "XVID"]
