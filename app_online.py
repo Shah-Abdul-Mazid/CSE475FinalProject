@@ -23,7 +23,7 @@ from logging.handlers import RotatingFileHandler
 import plotly.express as px
 from yolo_cam.eigen_cam import EigenCAM
 from yolo_cam.utils.image import scale_cam_image, show_cam_on_image
-from streamlit_webrtc import  webrtc_streamer
+from streamlit_webrtc import  webrtc_streamer,WebRtcMode,RTCConfiguration
 
 # Setup logging
 handler = RotatingFileHandler("app.log", maxBytes=10*1024*1024, backupCount=5)
