@@ -354,73 +354,54 @@ def display_images_grid(title, image_paths):
 #         except:
 #             continue
 #     return None
+
 def find_camera():
-    """Find an available camera index for OpenCV fallback."""
-    st.info("Searching for available cameras...")
-    for index in range(10):
-        for backend in [cv2.CAP_ANY, cv2.CAP_DSHOW, cv2.CAP_V4L2, cv2.CAP_AVFOUNDATION]:
-            cap = cv2.VideoCapture(index, backend)
-            if cap.isOpened():
-                logger.info(f"Camera found at index {index} with backend {backend}")
-                st.success(f"Camera found at index {index} with backend {backend}")
-                cap.release()
-                return index
+    """Find an available camera index."""
+    for index in range(5):  # Try indices 0 to 4
+        cap = cv2.VideoCapture(index)
+        if cap.isOpened():
+            logger.info(f"Camera found at index {index}")
+            st.success(f"Camera found at index {index}")
             cap.release()
+            return index
+        cap.release()
     logger.warning("No cameras found")
-    st.error("No cameras found. Please connect a camera or upload a video file.")
+    st.error("No cameras found. Please connect a camera.")
     return None
 
-class VideoTransformer(VideoTransformerBase):
-    """WebRTC transformer for YOLO object detection."""
-    def __init__(self, model, class_map):
-        self.model = model
-        self.class_map = class_map
-        self.frame_count = 0
-
-    def transform(self, frame):
+def get_available_codec():
+    """Return an available video codec, prioritizing H.264."""
+    codecs = ["avc1", "mp4v", "XVID"]
+    for codec in codecs:
         try:
-            img = frame.to_ndarray(format="bgr24")
-            img = cv2.resize(img, (640, 480))
-            results = run_inference(self.model, img)
-            if results:
-                img_annotated = draw_boxes_on_image(Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB)), 
-                                                 results, self.class_map)
-                img = cv2.cvtColor(np.array(img_annotated), cv2.COLOR_RGB2BGR)
-            self.frame_count += 1
-            logger.info(f"Processed frame {self.frame_count}")
-            return img
+            fourcc = cv2.VideoWriter_fourcc(*codec)
+            temp_out = cv2.VideoWriter("test.mp4", fourcc, 30, (640, 480))
+            if temp_out.isOpened():
+                temp_out.release()
+                os.remove("test.mp4")
+                logger.info(f"Codec {codec} is available")
+                return codec
+            temp_out.release()
         except Exception as e:
-            logger.error(f"WebRTC transform error: {str(e)}")
-            return frame.to_ndarray(format="bgr24")
+            logger.warning(f"Codec {codec} not available: {str(e)}")
+            continue
+    logger.warning("No suitable codec found")
+    st.error("No suitable video codec found.")
+    return None
 
-def real_time_inference(model, device):
-    """Perform real-time object detection using WebRTC or video file fallback."""
+def real_time_inference(model, class_map, video_source=0):
+    """Perform real-time object detection using webcam or video file."""
     if "stop_inference" not in st.session_state:
         st.session_state.stop_inference = False
-
-    st.write("Attempting to access webcam via WebRTC. Ensure browser permissions are granted.")
-    
-    # WebRTC streamer
-    if not st.session_state.stop_inference:
-        try:
-            webrtc_streamer(
-                key="yolo-detection",
-                video_transformer_factory=lambda: VideoTransformer(model, class_map),
-                rtc_configuration={"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]},
-                media_stream_constraints={"video": True, "audio": False}
-            )
-        except Exception as e:
-            st.error(f"WebRTC error: {str(e)}. Falling back to video file upload.")
-            logger.error(f"WebRTC error: {str(e)}")
 
     # Stop button
     if st.button("Stop Inference"):
         st.session_state.stop_inference = True
         st.experimental_rerun()
 
-    # Fallback to video file upload
-    st.write("If webcam access fails, upload a video file below.")
-    video_file = st.file_uploader("Upload a video for testing (MP4, AVI, MOV)", type=["mp4", "avi", "mov"])
+    # Video file upload option
+    st.write("Upload a video file (MP4, AVI, MOV) or use webcam.")
+    video_file = st.file_uploader("Upload a video for testing", type=["mp4", "avi", "mov"])
     temp_file_path = None
     if video_file is not None:
         with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as tfile:
@@ -430,56 +411,194 @@ def real_time_inference(model, device):
             st.session_state.video_uploaded = True
     else:
         st.session_state.video_uploaded = False
-        video_source = find_camera()
-        if video_source is None:
-            st.error("No cameras found. Please upload a video file to continue.")
-            return
+        if video_source == 0:  # Default to webcam
+            video_source = find_camera()
+            if video_source is None:
+                st.error("No cameras found. Please upload a video file to continue.")
+                return
 
-    # OpenCV fallback for video file or camera
-    if video_file is not None or video_source is not None:
-        backends = [cv2.CAP_ANY, cv2.CAP_DSHOW, cv2.CAP_V4L2, cv2.CAP_AVFOUNDATION]
-        cap = None
-        for backend in backends:
-            cap = cv2.VideoCapture(video_source, backend)
-            if cap.isOpened():
-                logger.info(f"Video source opened with backend: {backend}")
-                st.info(f"Video source opened with backend: {backend}")
+    # Initialize video capture
+    cap = cv2.VideoCapture(video_source)
+    if not cap.isOpened():
+        st.error("Error opening video stream or file. Ensure a camera is connected or the file is valid.")
+        logger.error(f"Failed to open video source: {video_source}")
+        return
+
+    # Get codec for potential video output
+    codec = get_available_codec()
+    if codec is None:
+        st.warning("No codec available for saving video, proceeding without recording.")
+
+    # Placeholder for video display
+    placeholder = st.empty()
+    
+    # Optional video writer (if codec is available)
+    out = None
+    if codec:
+        fourcc = cv2.VideoWriter_fourcc(*codec)
+        out = cv2.VideoWriter("output.mp4", fourcc, 30, (640, 480))
+
+    try:
+        while not st.session_state.stop_inference:
+            ret, frame = cap.read()
+            if not ret:
+                logger.warning("Failed to read frame, stopping inference")
+                st.warning("End of video or camera feed.")
                 break
-            cap.release()
+            frame = cv2.resize(frame, (640, 480))
+            results = run_inference(model, frame)
+            if results:
+                img_annotated = draw_boxes_on_image(Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)), 
+                                                  results, class_map)
+                frame = cv2.cvtColor(np.array(img_annotated), cv2.COLOR_RGB2BGR)
+            placeholder.image(frame, caption="Real-time Object Detection", channels="BGR", use_container_width=True)
+            if out:
+                out.write(frame)
+            time.sleep(0.03)  # Control frame rate
+    except Exception as e:
+        st.error(f"Error during inference: {str(e)}")
+        logger.error(f"Inference error: {str(e)}")
+    finally:
+        cap.release()
+        if out:
+            out.release()
+            logger.info("Video writer released")
+        if temp_file_path and os.path.exists(temp_file_path):
+            try:
+                os.unlink(temp_file_path)
+                logger.info(f"Deleted temporary file: {temp_file_path}")
+            except Exception as e:
+                logger.warning(f"Failed to delete temp file {temp_file_path}: {str(e)}")
+        if os.path.exists("output.mp4"):
+            st.success("Processed video saved as output.mp4")
+            
+            
+# def find_camera():
+#     """Find an available camera index for OpenCV fallback."""
+#     st.info("Searching for available cameras...")
+#     for index in range(10):
+#         for backend in [cv2.CAP_ANY, cv2.CAP_DSHOW, cv2.CAP_V4L2, cv2.CAP_AVFOUNDATION]:
+#             cap = cv2.VideoCapture(index, backend)
+#             if cap.isOpened():
+#                 logger.info(f"Camera found at index {index} with backend {backend}")
+#                 st.success(f"Camera found at index {index} with backend {backend}")
+#                 cap.release()
+#                 return index
+#             cap.release()
+#     logger.warning("No cameras found")
+#     st.error("No cameras found. Please connect a camera or upload a video file.")
+#     return None
 
-        if not cap or not cap.isOpened():
-            st.error("Error opening video stream or file. Ensure a camera is connected or the file is valid.")
-            logger.error(f"Failed to open video source: {video_source}")
-            return
+# class VideoTransformer(VideoTransformerBase):
+#     """WebRTC transformer for YOLO object detection."""
+#     def __init__(self, model, class_map):
+#         self.model = model
+#         self.class_map = class_map
+#         self.frame_count = 0
 
-        placeholder = st.empty()
+#     def transform(self, frame):
+#         try:
+#             img = frame.to_ndarray(format="bgr24")
+#             img = cv2.resize(img, (640, 480))
+#             results = run_inference(self.model, img)
+#             if results:
+#                 img_annotated = draw_boxes_on_image(Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB)), 
+#                                                  results, self.class_map)
+#                 img = cv2.cvtColor(np.array(img_annotated), cv2.COLOR_RGB2BGR)
+#             self.frame_count += 1
+#             logger.info(f"Processed frame {self.frame_count}")
+#             return img
+#         except Exception as e:
+#             logger.error(f"WebRTC transform error: {str(e)}")
+#             return frame.to_ndarray(format="bgr24")
+
+# def real_time_inference(model, device):
+#     """Perform real-time object detection using WebRTC or video file fallback."""
+#     if "stop_inference" not in st.session_state:
+#         st.session_state.stop_inference = False
+
+#     st.write("Attempting to access webcam via WebRTC. Ensure browser permissions are granted.")
+    
+#     # WebRTC streamer
+#     if not st.session_state.stop_inference:
+#         try:
+#             webrtc_streamer(
+#                 key="yolo-detection",
+#                 video_transformer_factory=lambda: VideoTransformer(model, class_map),
+#                 rtc_configuration={"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]},
+#                 media_stream_constraints={"video": True, "audio": False}
+#             )
+#         except Exception as e:
+#             st.error(f"WebRTC error: {str(e)}. Falling back to video file upload.")
+#             logger.error(f"WebRTC error: {str(e)}")
+
+#     # Stop button
+#     if st.button("Stop Inference"):
+#         st.session_state.stop_inference = True
+#         st.experimental_rerun()
+
+#     # Fallback to video file upload
+#     st.write("If webcam access fails, upload a video file below.")
+#     video_file = st.file_uploader("Upload a video for testing (MP4, AVI, MOV)", type=["mp4", "avi", "mov"])
+#     temp_file_path = None
+#     if video_file is not None:
+#         with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as tfile:
+#             tfile.write(video_file.read())
+#             temp_file_path = tfile.name
+#             video_source = temp_file_path
+#             st.session_state.video_uploaded = True
+#     else:
+#         st.session_state.video_uploaded = False
+#         video_source = find_camera()
+#         if video_source is None:
+#             st.error("No cameras found. Please upload a video file to continue.")
+#             return
+
+#     # OpenCV fallback for video file or camera
+#     if video_file is not None or video_source is not None:
+#         backends = [cv2.CAP_ANY, cv2.CAP_DSHOW, cv2.CAP_V4L2, cv2.CAP_AVFOUNDATION]
+#         cap = None
+#         for backend in backends:
+#             cap = cv2.VideoCapture(video_source, backend)
+#             if cap.isOpened():
+#                 logger.info(f"Video source opened with backend: {backend}")
+#                 st.info(f"Video source opened with backend: {backend}")
+#                 break
+#             cap.release()
+
+#         if not cap or not cap.isOpened():
+#             st.error("Error opening video stream or file. Ensure a camera is connected or the file is valid.")
+#             logger.error(f"Failed to open video source: {video_source}")
+#             return
+
+#         placeholder = st.empty()
         
-        try:
-            while not st.session_state.stop_inference:
-                ret, frame = cap.read()
-                if not ret:
-                    logger.warning("Failed to read frame, stopping inference")
-                    st.warning("End of video or camera feed.")
-                    break
-                frame = cv2.resize(frame, (640, 480))
-                results = run_inference(model, frame)
-                if results:
-                    img_annotated = draw_boxes_on_image(Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)), 
-                                                      results, class_map)
-                    frame = cv2.cvtColor(np.array(img_annotated), cv2.COLOR_RGB2BGR)
-                    placeholder.image(frame, caption="Real-time Object Detection", channels="BGR", use_container_width=True)
-                time.sleep(0.03)
-        except Exception as e:
-            st.error(f"Error during inference: {str(e)}")
-            logger.error(f"Inference error: {str(e)}")
-        finally:
-            cap.release()
-            if temp_file_path and os.path.exists(temp_file_path):
-                try:
-                    os.unlink(temp_file_path)
-                    logger.info(f"Deleted temporary file: {temp_file_path}")
-                except Exception as e:
-                    logger.warning(f"Failed to delete temp file {temp_file_path}: {str(e)}")
+#         try:
+#             while not st.session_state.stop_inference:
+#                 ret, frame = cap.read()
+#                 if not ret:
+#                     logger.warning("Failed to read frame, stopping inference")
+#                     st.warning("End of video or camera feed.")
+#                     break
+#                 frame = cv2.resize(frame, (640, 480))
+#                 results = run_inference(model, frame)
+#                 if results:
+#                     img_annotated = draw_boxes_on_image(Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)), 
+#                                                       results, class_map)
+#                     frame = cv2.cvtColor(np.array(img_annotated), cv2.COLOR_RGB2BGR)
+#                     placeholder.image(frame, caption="Real-time Object Detection", channels="BGR", use_container_width=True)
+#                 time.sleep(0.03)
+#         except Exception as e:
+#             st.error(f"Error during inference: {str(e)}")
+#             logger.error(f"Inference error: {str(e)}")
+#         finally:
+#             cap.release()
+#             if temp_file_path and os.path.exists(temp_file_path):
+#                 try:
+#                     os.unlink(temp_file_path)
+#                     logger.info(f"Deleted temporary file: {temp_file_path}")
+#                 except Exception as e:
+#                     logger.warning(f"Failed to delete temp file {temp_file_path}: {str(e)}")
                                     
 def get_available_codec():
     """Return an available video codec, prioritizing H.264."""
