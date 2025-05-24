@@ -11,7 +11,6 @@ import numpy as np
 import cv2
 import time
 from pathlib import Path
-import sys
 import asyncio
 import platform
 import warnings
@@ -143,7 +142,7 @@ IMAGE_PATHS_MAP = {
         "Precision Curve": BASE_DIR / "yolo_training" / "yolov10_AdamW" / "P_curve.png",
         "Precision-Recall Curve": BASE_DIR / "yolo_training" / "yolov10_AdamW" / "PR_curve.png",
         "Recall Curve": BASE_DIR / "yolo_training" / "yolov10_AdamW" / "R_curve.png",
-        "Results": BASE_DIR / "yolo_training" / "yolo12_AdamW" / "results.png"
+        "Results": BASE_DIR / "yolo_training" / "yolov10_AdamW" / "results.png"
     },
     "YOLO10_with_Adamax": {
         "Normalized Confusion Matrix": BASE_DIR / "yolo_training" / "yolov10_Adamax" / "confusion_matrix_normalized.png",
@@ -300,7 +299,7 @@ def display_images_grid(title, image_paths):
 
 def find_camera():
     """Find an available camera index."""
-    for index in range(5):  # Try indices 0 to 4
+    for index in range(5):
         cap = cv2.VideoCapture(index)
         if cap.isOpened():
             logger.info(f"Camera found at index {index}")
@@ -333,59 +332,51 @@ def get_available_codec():
     return None
 
 def real_time_inference(model, class_map, device):
-    """Perform real-time object detection using WebRTC.
-
-    Args:
-        model: The object detection model.
-        class_map: Dictionary mapping class IDs to labels for visualization.
-        device: Device to run the model on (e.g., 'cuda' or 'cpu').
-    """
+    """Perform real-time object detection using WebRTC."""
     try:
-        # Initialize session state for stopping inference
         if "stop_inference" not in st.session_state:
             st.session_state.stop_inference = False
 
-        # Stop button
-        if st.button("Stop Inference"):
-            st.session_state.stop_inference = True
-            st.rerun()
+        col1, col2 = st.columns([3, 1])
+        with col2:
+            if st.button("Stop Inference", key="stop_inference"):
+                st.session_state.stop_inference = True
+                st.rerun()
 
-        if not st.session_state.stop_inference:
-            def process_frame(frame):
-                try:
-                    if frame is None:
-                        logger.warning("Received None frame")
-                        return None
-                    img = frame.to_ndarray(format="bgr24")
-                    if img is None or img.size == 0:
-                        logger.warning("Empty frame received")
+        with col1:
+            st.markdown("### Live Webcam Feed with Object Detection")
+            if not st.session_state.stop_inference:
+                def process_frame(frame):
+                    try:
+                        img = frame.to_ndarray(format="bgr24")
+                        if img is None or img.size == 0:
+                            logger.warning("Empty frame received")
+                            return img
+                        img = cv2.resize(img, (640, 480))
+                        results = run_inference(model, img)
+                        if results:
+                            img_annotated = draw_boxes_on_image(
+                                Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB)),
+                                results,
+                                class_map
+                            )
+                            img = cv2.cvtColor(np.array(img_annotated), cv2.COLOR_RGB2BGR)
                         return img
-                    img = cv2.resize(img, (640, 480))
-                    results = run_inference(model, img)
-                    if results:
-                        img_annotated = draw_boxes_on_image(
-                            Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB)),
-                            results,
-                            class_map
-                        )
-                        img = cv2.cvtColor(np.array(img_annotated), cv2.COLOR_RGB2BGR)
-                    return img
-                except Exception as e:
-                    logger.error(f"Error processing frame: {str(e)}")
-                    return frame.to_ndarray(format="bgr24") if frame else None
+                    except Exception as e:
+                        logger.error(f"Error processing frame: {str(e)}")
+                        return frame.to_ndarray(format="bgr24") if frame else None
 
-            # Start WebRTC streamer with frame callback
-            webrtc_streamer(
-                key="real-time-detection",
-                mode=WebRtcMode.SENDRECV,
-                video_frame_callback=process_frame,
-                async_processing=True,
-                media_stream_constraints={"video": True, "audio": False},
-                rtc_configuration=RTCConfiguration({"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]})
-            )
-        else:
-            st.info("Real-time detection stopped.")
-            logger.info("Real-time detection stopped by user.")
+                webrtc_streamer(
+                    key="real-time-detection",
+                    mode=WebRtcMode.SENDRECV,
+                    video_frame_callback=process_frame,
+                    async_processing=True,
+                    media_stream_constraints={"video": True, "audio": False},
+                    rtc_configuration=RTCConfiguration({"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]})
+                )
+            else:
+                st.info("Real-time detection stopped.")
+                logger.info("Real-time detection stopped by user.")
     except Exception as e:
         st.error(f"Error during real-time inference: {str(e)}")
         logger.error(f"Error during real-time inference: {str(e)}")
@@ -653,14 +644,17 @@ def main():
 
     elif selected == "Real-time Detection":
         st.subheader("Real-time Object Detection")
-        st.write("Perform object detection using your webcam via WebRTC. Click 'Stop Inference' to end the session.")
-        model_choice_rt = st.selectbox("Select YOLO Model for Real-time Detection", ["select a model"] + list(MODEL_PATHS.keys()))
+        st.write("Perform object detection using your webcam. Select a YOLO model and allow webcam access to start the live feed. Click 'Stop Inference' to end the session.")
+        camera_index = find_camera()
+        if camera_index is None:
+            st.stop()
 
+        model_choice_rt = st.selectbox("Select YOLO Model for Real-time Detection", ["select a model"] + list(valid_models.keys()))
         if model_choice_rt != "select a model":
-            model_path = MODEL_PATHS.get(model_choice_rt)
+            model_path = valid_models.get(model_choice_rt)
             model = get_model(model_path)
             if model:
-                st.info("Starting inference. Allow webcam access in your browser.")
+                st.info("Starting real-time detection. Please allow webcam access in your browser.")
                 real_time_inference(model, class_map, get_device())
             else:
                 st.error("Model could not be loaded.")
