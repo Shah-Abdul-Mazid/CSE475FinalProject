@@ -60,24 +60,20 @@ class_map = {
     8.0: 'Truck'
 }
 
-# Define base directory and dataset path
 root_dataset_path = BASE_DIR / "Raw Image" / "Raw Images"
 yolo_training_path = BASE_DIR / "yolo_training"
 
-# Validate base directory
 if not BASE_DIR.exists():
     st.error(f"Base directory not found: {BASE_DIR}")
     logger.error(f"Base directory not found: {BASE_DIR}")
     st.stop()
 logger.info(f"Base Directory: {BASE_DIR}")
 
-# Validate dataset directory
 if not root_dataset_path.exists():
     st.error(f"Dataset directory not found: {root_dataset_path}")
     logger.error(f"Dataset directory not found: {root_dataset_path}")
     st.stop()
 
-# Function to get list of subdirectories (locations) recursively
 def get_dataset_locations(root_path):
     """Get list of subdirectory names in the dataset path using os.walk."""
     locations = []

@@ -1,0 +1,15 @@
+2026-04-21 16:56:47,498 - INFO - Base Directory: C:\Users\LENOVO\Desktop\CSE475FinalProject
+2026-04-21 16:57:26,553 - INFO - Base Directory: C:\Users\LENOVO\Desktop\CSE475FinalProject
+2026-04-21 16:57:35,116 - INFO - Base Directory: C:\Users\LENOVO\Desktop\CSE475FinalProject
+2026-04-21 18:31:27,680 - INFO - Base Directory: C:\Users\LENOVO\Desktop\CSE475FinalProject
+2026-04-21 18:31:51,140 - INFO - Base Directory: C:\Users\LENOVO\Desktop\CSE475FinalProject
+2026-04-21 18:32:56,828 - INFO - Base Directory: C:\Users\LENOVO\Desktop\CSE475FinalProject
+2026-04-21 18:33:02,722 - INFO - Base Directory: C:\Users\LENOVO\Desktop\CSE475FinalProject
+2026-04-21 18:33:03,151 - INFO - Input image saved: C:\Users\LENOVO\Desktop\CSE475FinalProject\yolo_grad_cam_output\20260421_183303\image_20260421_183303_input.jpg
+2026-04-21 18:33:04,099 - INFO - Detection output saved: C:\Users\LENOVO\Desktop\CSE475FinalProject\yolo_grad_cam_output\20260421_183303\image_20260421_183303_detection.jpg
+2026-04-21 18:33:06,086 - INFO - Saved Grad-CAM: C:\Users\LENOVO\Desktop\CSE475FinalProject\yolo_grad_cam_output\20260421_183303\image_20260421_183303_gradcam.jpg
+2026-04-21 18:34:45,503 - INFO - Base Directory: C:\Users\LENOVO\Desktop\CSE475FinalProject
+2026-04-21 18:34:45,805 - INFO - Base Directory: C:\Users\LENOVO\Desktop\CSE475FinalProject
+2026-04-21 18:34:46,161 - INFO - Input image saved: C:\Users\LENOVO\Desktop\CSE475FinalProject\yolo_grad_cam_output\20260421_183446\image_20260421_183446_input.jpg
+2026-04-21 18:34:46,822 - INFO - Detection output saved: C:\Users\LENOVO\Desktop\CSE475FinalProject\yolo_grad_cam_output\20260421_183446\image_20260421_183446_detection.jpg
+2026-04-21 18:34:48,690 - INFO - Saved Grad-CAM: C:\Users\LENOVO\Desktop\CSE475FinalProject\yolo_grad_cam_output\20260421_183446\image_20260421_183446_gradcam.jpg
